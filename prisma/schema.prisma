@@ -1,0 +1,137 @@
+// Prisma Schema Configuration
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        String    @id @default(uuid())
+  name      String
+  email     String    @unique
+  password  String
+  role      String    @default("ADMIN")
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("users")
+}
+
+model State {
+  id        String    @id @default(uuid())
+  name      String    // e.g. "बिहार", "उत्तर प्रदेश", "दिल्ली-एनसीआर"
+  slug      String    @unique // e.g. "bihar", "uttar-pradesh", "delhi-ncr"
+  order     Int       @default(0) // Mega-Menu display order
+  active    Boolean   @default(true) // Enable/Disable state toggle
+  editions  Edition[] // One-to-Many relation with Edition
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@map("states")
+}
+
+model Edition {
+  id        String       @id @default(uuid())
+  stateId   String?      // Foreign Key pointing to State
+  state     State?       @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  name      String       // Full name, e.g. "पटना (मुख्य)", "दिल्ली एनसीआर"
+  city      String       // City identifier, e.g. "पटना", "दिल्ली NCR"
+  title     String?      // Masthead Title, e.g. "अपना पटना"
+  tag       String?      // Edition badge, e.g. "बिहार मुख्य संस्करण"
+  slug      String       @unique // e.g. "patna-main"
+  code      String?      // e.g. "PAT_MAIN"
+  order     Int          @default(0)
+  isActive  Boolean      @default(true)
+  issues    PaperIssue[]
+  deletedAt DateTime?    // Soft Delete support
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([stateId])
+  @@map("editions")
+}
+
+model PaperIssue {
+  id               String      @id @default(uuid())
+  editionId        String      // Relation FK to Edition
+  edition          Edition     @relation(fields: [editionId], references: [id], onDelete: Cascade)
+  publishDate      DateTime    // Publication Date (e.g. 2026-09-24)
+  status           String      @default("DRAFT") // DRAFT or PUBLISHED
+  totalPages       Int         @default(1)
+  broadsheetPdfUrl String?
+  pages            PaperPage[]
+  deletedAt        DateTime?   // Soft Delete support
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@unique([editionId, publishDate])
+  @@map("paper_issues")
+}
+
+model PaperPage {
+  id           String      @id @default(uuid())
+  paperIssueId String
+  paperIssue   PaperIssue  @relation(fields: [paperIssueId], references: [id], onDelete: Cascade)
+  pageNumber   Int         // 1 to 16
+  title        String      // e.g. "Lead Cover", "City / State"
+  templateKey  String      @default("layout_1")
+  pdfUrl       String?
+  pageImage    String?
+  slots        PaperSlot[]
+  deletedAt    DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@unique([paperIssueId, pageNumber])
+  @@map("paper_pages")
+}
+
+model PaperSlot {
+  id                  String    @id @default(uuid())
+  pageId              String
+  page                PaperPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  slotIndex           Int
+  x                   Int       @default(16)
+  y                   Int       @default(115)
+  width               Int       @default(400)
+  height              Int       @default(250)
+  headline            String    @db.Text
+  subHeadline         String?   @db.Text
+  categoryTag         String?
+  contentText         String?   @db.LongText
+  imageUrl            String?   @db.LongText
+  imageAlign          String    @default("CENTER")
+  imageWidth          Int?
+  imageHeight         Int?
+  imgPxX              Int?
+  imgPxY              Int?
+  headlineFontSize    Int?      @default(22)
+  subHeadlineFontSize Int?      @default(18)
+  bodyFontSize        Int?      @default(14)
+  headlineColor       String?   @default("#111827")
+  subHeadlineColor    String?   @default("#ba1228")
+  bodyTextColor       String?   @default("#1f2937")
+  colSpan             Int       @default(8)
+  rowSpan             String    @default("auto")
+  forceRowBreak       Boolean   @default(false)
+  columnCount         Int?      @default(1)
+  showColumnDividers  Boolean?  @default(false)
+  columnDividerColor  String?   @default("#cbd5e1")
+  kickerColor         String?   @default("#b91c1c")
+  kickerTag           String?   @db.Text
+  subStories          String?   @db.LongText
+  highlightBox        String?   @db.Text
+  bulletPoints        String?   @db.Text
+  photoCaption        String?   @db.Text
+  isAd                Boolean   @default(false)
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("paper_slots")
+}
+
