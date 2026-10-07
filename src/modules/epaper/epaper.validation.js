@@ -1,10 +1,12 @@
 import Joi from 'joi';
 
 export const saveSlotSchema = Joi.object({
-  editionSlug: Joi.string().required(),
-  publishDate: Joi.string().required(),
-  pageNumber: Joi.number().integer().min(1).max(50).required(),
-  slotIndex: Joi.number().integer().min(1).required(),
+  editionSlug: Joi.string().optional(),
+  edition: Joi.string().optional(),
+  publishDate: Joi.string().optional(),
+  date: Joi.string().optional(),
+  pageNumber: Joi.number().integer().min(1).max(50).optional().default(1),
+  slotIndex: Joi.number().integer().min(0).optional().default(1),
   x: Joi.number().optional().default(16),
   y: Joi.number().optional().default(115),
   width: Joi.number().optional().default(400),
@@ -23,35 +25,44 @@ export const saveSlotSchema = Joi.object({
   rowSpan: Joi.string().optional().default('auto'),
   forceRowBreak: Joi.boolean().optional().default(false),
   isAd: Joi.boolean().optional().default(false)
-});
+}).unknown(true);
 
 export const publishPaperSchema = Joi.object({
-  editionSlug: Joi.string().required(),
-  publishDate: Joi.string().required(),
-  status: Joi.string().valid('DRAFT', 'PUBLISHED').optional().default('PUBLISHED'),
+  editionSlug: Joi.string().optional(),
+  edition: Joi.string().optional(),
+  publishDate: Joi.string().optional(),
+  date: Joi.string().optional(),
+  status: Joi.string().optional().default('PUBLISHED'),
   pages: Joi.array().optional()
-});
+}).unknown(true);
 
 export const addPageSchema = Joi.object({
-  editionSlug: Joi.string().required(),
-  publishDate: Joi.string().required(),
-  pageNumber: Joi.number().integer().min(1).max(50).required(),
+  editionSlug: Joi.string().optional(),
+  edition: Joi.string().optional(),
+  publishDate: Joi.string().optional(),
+  date: Joi.string().optional(),
+  pageNumber: Joi.number().integer().min(1).max(50).optional().default(1),
   title: Joi.string().optional().default('City News'),
   templateKey: Joi.string().optional().default('layout_1')
-});
+}).unknown(true);
 
 export const generatePdfSchema = Joi.object({
-  editionSlug: Joi.string().required(),
+  editionSlug: Joi.string().optional(),
+  edition: Joi.string().optional(),
   editionName: Joi.string().optional(),
   editionTitle: Joi.string().optional(),
   editionCity: Joi.string().optional(),
   editionState: Joi.string().optional(),
-  publishDate: Joi.string().required(),
+  publishDate: Joi.string().optional(),
+  date: Joi.string().optional(),
   pages: Joi.array().optional()
-});
+}).unknown(true);
 
 export const savePagesBulkSchema = Joi.object({
-  editionSlug: Joi.string().required(),
-  publishDate: Joi.string().required(),
-  pages: Joi.array().required()
-});
+  editionSlug: Joi.string().optional(),
+  edition: Joi.string().optional(),
+  publishDate: Joi.string().optional(),
+  date: Joi.string().optional(),
+  pages: Joi.array().optional().default([])
+}).unknown(true);
+

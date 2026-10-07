@@ -3,11 +3,11 @@ import path from 'path';
 import fs from 'fs';
 
 function formatHindiDateline(dateStr) {
-  if (!dateStr) return 'पटना • 24 अक्टूबर 2026';
+  if (!dateStr) return 'मंगलवार • 6 अक्टूबर 2026';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
   const days = ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'];
-  const months = ['जनवरी', 'फरवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर'];
+  const months = ['जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर'];
 
   const dayName = days[d.getDay()];
   const dateNum = d.getDate();
@@ -17,255 +17,445 @@ function formatHindiDateline(dateStr) {
   return `${dayName} • ${dateNum} ${monthName} ${year}`;
 }
 
+function getSummaryLineHeight(fontSize) {
+  const f = Math.round(Number(fontSize) || 14);
+  if (f <= 12) return 17;
+  if (f === 13) return 19;
+  if (f === 14) return 21;
+  if (f === 15) return 22;
+  if (f === 16) return 24;
+  if (f === 17) return 25;
+  if (f === 18) return 26;
+  return Math.round(f * 1.47);
+}
+
 function sliceHtmlTokens(html) {
   if (!html) return [];
   const tagRegex = /(<[^>]+>|[^<>\s]+|\s+)/g;
   return html.match(tagRegex) || [];
 }
 
-function buildPageFragment(opts, pageObj, pIdx) {
+function normalizeSlot(slot, pIdx, sIdx) {
+  const width = Number(slot.width ?? slot.w ?? 400);
+  const height = Number(slot.height ?? slot.h ?? 250);
+  const x = Number(slot.x ?? 16);
+  const y = Number(slot.y ?? 115);
+  const sId = slot.id || `p${pIdx}-s${sIdx}`;
+
+  const colsCount = Number(
+    slot.columnsCount ?? slot.columnCount ?? slot.columns_count ?? slot.colsCount ?? slot.content?.columnsCount ?? (width >= 550 ? 2 : 1)
+  );
+  const colGap = Number(slot.columnGap ?? slot.column_gap ?? slot.content?.columnGap ?? 14);
+  
+  // NEVER force dividers on multi-column slots; strictly respect canvas setting
+  const showDivider = Boolean(
+    slot.showColumnDivider ?? slot.show_column_divider ?? slot.content?.showColumnDivider ?? false
+  );
+
+  const headline = slot.headline || slot.content?.headline || '';
+  const subHeadline = slot.subHeadline || slot.content?.subHeadline || '';
+  const summary = slot.summary || slot.contentText || slot.content?.body || slot.content?.summary || '';
+  const imageUrl = slot.imageUrl || slot.content?.imageUrl || '';
+  const categoryBadge = (slot.categoryBadge || slot.categoryTag || slot.content?.categoryBadge || slot.content?.categoryTag || '').trim();
+
+  const headlineFontSize = Number(
+    slot.headlineFontSize ?? slot.headline_font_size ?? slot.content?.headlineFontSize ?? 22
+  );
+  const headlineColor = slot.headlineColor || slot.headline_color || slot.content?.headlineColor || '#020617';
+
+  const subHeadlineFontSize = Number(
+    slot.subHeadlineFontSize ?? slot.sub_headline_font_size ?? slot.content?.subHeadlineFontSize ?? 13
+  );
+  const subHeadlineColor = slot.subHeadlineColor || slot.sub_headline_color || slot.content?.subHeadlineColor || '#b91c1c';
+
+  const summaryFontSize = Number(
+    slot.summaryFontSize ?? slot.summary_font_size ?? slot.bodyFontSize ?? slot.body_font_size ?? slot.content?.summaryFontSize ?? slot.content?.bodyFontSize ?? 14
+  );
+  const summaryColor = slot.summaryColor || slot.summary_color || slot.bodyTextColor || slot.content?.summaryColor || '#1e293b';
+
+  const cardContentW = Math.max(100, width - 24);
+  const hasImage = Boolean(imageUrl);
+  const imageWidth = Number(slot.imageWidth || slot.content?.imageWidth || (colsCount > 1 ? Math.floor(cardContentW / colsCount) : 180));
+  const imageHeight = Number(slot.imageHeight || slot.content?.imageHeight || 140);
+
+  const normAlign = (slot.imageAlignment || slot.imageAlign || slot.content?.imageAlignment || 'Left').toLowerCase();
+  const vertAlign = slot.imageVertAlign || slot.image_vert_align || slot.content?.imageVertAlign || 'top';
+  const imageWrapMode = slot.imageWrapMode || slot.image_wrap_mode || slot.content?.imageWrapMode || 'auto';
+  const imgPxX = slot.imgPxX !== undefined ? Number(slot.imgPxX) : (slot.content?.imgPxX !== undefined ? Number(slot.content.imgPxX) : undefined);
+
+  let compSec = slot.computedSections || slot.content?.computedSections;
+  if (!compSec && slot.subStories && typeof slot.subStories === 'string' && slot.subStories.includes('text1')) {
+    try {
+      compSec = JSON.parse(slot.subStories);
+    } catch {}
+  }
+
+  return {
+    ...slot,
+    id: sId,
+    width,
+    height,
+    x,
+    y,
+    colsCount,
+    colGap,
+    showDivider,
+    headline,
+    subHeadline,
+    summary,
+    imageUrl,
+    categoryBadge,
+    headlineFontSize,
+    headlineColor,
+    subHeadlineFontSize,
+    subHeadlineColor,
+    summaryFontSize,
+    summaryColor,
+    cardContentW,
+    hasImage,
+    imageWidth,
+    imageHeight,
+    normAlign,
+    vertAlign,
+    imageWrapMode,
+    imgPxX,
+    computedSections: compSec
+  };
+}
+
+function computeSectionsFallback(s) {
+  const colsCount = s.colsCount;
+  const colGap = s.colGap;
+  const cardH = s.height;
+  const cardContentW = s.cardContentW;
+  const showDivider = s.showDivider;
+
+  const hasBadge = Boolean(s.categoryBadge);
+  const badgeH = hasBadge ? 18 : 0;
+  const hlFont = s.headlineFontSize;
+  const subFont = s.subHeadlineFontSize;
+  const summaryFont = s.summaryFontSize;
+  const lineH = getSummaryLineHeight(summaryFont);
+
+  const hlCharsPerLine = Math.max(12, Math.floor(cardContentW / (hlFont * 0.52)));
+  const hlLines = s.headline ? Math.max(1, Math.ceil(s.headline.length / hlCharsPerLine)) : 0;
+  const hlH = hlLines * hlFont * 1.25;
+
+  const subCharsPerLine = Math.max(18, Math.floor(cardContentW / (subFont * 0.52)));
+  const subLines = s.subHeadline ? Math.max(1, Math.ceil(s.subHeadline.length / subCharsPerLine)) : 0;
+  const subH = subLines * subFont * 1.25;
+
+  const cardFraming = 16;
+  const headerTotalH = Math.ceil(badgeH + hlH + subH + cardFraming);
+  const rawStoryH = Math.max(lineH, cardH - headerTotalH);
+  const fullStoryH = Math.max(lineH, Math.floor(rawStoryH / lineH) * lineH);
+
+  const imgW = s.imageWidth;
+  const imgH = s.imageHeight;
+  const isFullCardPhoto = imgW >= cardContentW - 30 || s.imageWrapMode === 'top-span';
+
+  const rawUnderPhotoH = Math.max(lineH, fullStoryH - imgH - 8);
+  const underPhotoH = Math.max(lineH, Math.floor(rawUnderPhotoH / lineH) * lineH);
+
+  if (colsCount === 1 || isFullCardPhoto) {
+    return {
+      isFullWidth: true,
+      text1: s.summary || '',
+      text2: '',
+      text2b: '',
+      text3: '',
+      leftCols: 0,
+      photoCols: colsCount,
+      rightCols: 0,
+      leftSectionW: 0,
+      photoSectionW: cardContentW,
+      rightSectionW: 0,
+      underPhotoH,
+      fullStoryH,
+      colsCount,
+      colGap,
+      singleColW: cardContentW,
+      showDivider,
+      startCol: 0
+    };
+  }
+
+  const singleColW = Math.max(60, Math.floor((cardContentW - (colGap * (colsCount - 1))) / colsCount));
+  const colStep = singleColW + colGap;
+  const spanCols = Math.min(colsCount - 1, Math.max(1, Math.round((imgW + (colGap * 0.5)) / colStep)));
+  const maxStartCol = Math.max(0, colsCount - spanCols);
+
+  let startCol = 0;
+  if (s.imgPxX !== undefined && maxStartCol >= 1) {
+    startCol = Math.max(0, Math.min(maxStartCol, Math.round(s.imgPxX / colStep)));
+  } else if (s.normAlign === 'left') {
+    startCol = 0;
+  } else if (s.normAlign === 'right') {
+    startCol = maxStartCol;
+  } else {
+    startCol = 0;
+  }
+
+  const leftCols = startCol;
+  const photoCols = spanCols;
+  const rightCols = colsCount - (startCol + spanCols);
+
+  const leftSectionW = leftCols > 0 ? (leftCols * singleColW) + ((leftCols - 1) * colGap) : 0;
+  const photoSectionW = (photoCols * singleColW) + ((photoCols - 1) * colGap);
+  const rightSectionW = rightCols > 0 ? (rightCols * singleColW) + ((rightCols - 1) * colGap) : 0;
+
+  const tokens = sliceHtmlTokens(s.summary || '');
+  const charsPerColLine = Math.max(8, Math.floor(singleColW / (summaryFont * 0.58)));
+  const linesUnderPhoto = Math.max(1, Math.floor(underPhotoH / lineH));
+  const linesFullCol = Math.max(1, Math.floor(fullStoryH / lineH));
+
+  const capLeft = leftCols * linesFullCol * charsPerColLine;
+  const capPhoto = photoCols * linesUnderPhoto * charsPerColLine;
+
+  let curChar = 0;
+  let text1Tokens = [];
+  let text2Tokens = [];
+  let text3Tokens = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    const isTag = tok.startsWith('<');
+    const len = isTag ? 0 : tok.length;
+
+    if (leftCols > 0 && curChar < capLeft) {
+      text1Tokens.push(tok);
+      curChar += len;
+    } else if (curChar < capLeft + capPhoto) {
+      text2Tokens.push(tok);
+      curChar += len;
+    } else {
+      text3Tokens.push(tok);
+      curChar += len;
+    }
+  }
+
+  return {
+    isFullWidth: false,
+    text1: text1Tokens.join(''),
+    text2: text2Tokens.join(''),
+    text2b: '',
+    text3: text3Tokens.join(''),
+    leftCols,
+    photoCols,
+    rightCols,
+    leftSectionW,
+    photoSectionW,
+    rightSectionW,
+    underPhotoH,
+    fullStoryH,
+    colsCount,
+    colGap,
+    singleColW,
+    showDivider,
+    startCol
+  };
+}
+
+export function buildPageFragment(opts, pageObj, pIdx) {
   const { editionName, editionTitle, editionCity, editionState, publishDate } = opts;
   const formattedDate = formatHindiDateline(publishDate);
   const cityStr = editionCity || 'पटना';
-  const mainTitle = editionTitle || (editionName ? (editionName.includes('पटना') ? editionName : `अपना ${editionName.replace(/edition/i, '').replace(/\(.*\)/g, '').trim()}`) : 'अपना पटना');
-  const stateStr = editionState || 'बिहार मुख्य संस्करण';
+  const mainTitle = editionTitle || (editionName ? (editionName.includes('पटना') ? editionName : `दैनिक ${editionName.replace(/edition/i, '').replace(/\(.*\)/g, '').trim()}`) : 'दैनिक पटना (मुख्य)');
+  const stateStr = editionState || 'बिहार मुख्य संस्करण • पटना (मुख्य)';
   const pageNum = pageObj.pageNumber || (pIdx + 1);
 
-  const slots = pageObj.slots || [];
-  const slotTokensList = [];
+  const rawSlots = pageObj.slots || [];
 
-  const slotsHtml = slots.map((slot, sIdx) => {
-    const x = slot.x ?? 16;
-    const y = slot.y ?? 115;
-    const w = slot.width ?? 400;
-    const h = slot.height ?? 250;
-    const sId = slot.id || `p${pIdx}-s${sIdx}`;
+  const slotsHtml = rawSlots.map((rawSlot, sIdx) => {
+    const slot = normalizeSlot(rawSlot, pIdx, sIdx);
+    const {
+      x, y, width: w, height: h, id: sId,
+      colsCount, colGap, showDivider,
+      headline, subHeadline, summary, imageUrl, categoryBadge,
+      headlineFontSize, headlineColor,
+      subHeadlineFontSize, subHeadlineColor,
+      summaryFontSize, summaryColor,
+      cardContentW, hasImage, imageWidth: imgW, imageHeight: imgH,
+      normAlign, vertAlign, imageWrapMode, imgPxX
+    } = slot;
+
+    // Strict boundary clearance: slot never touches the bottom footer bar (at y=2072px)
+    const safeH = Math.min(h, Math.max(100, 2065 - y));
+    const lineH = getSummaryLineHeight(summaryFontSize);
 
     if (slot.isAd) {
       return `
-        <div style="position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${h}px; border: 2px dashed #d97706; padding: 12px; box-sizing: border-box; background: #fffbeb; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${safeH}px; border: 2px dashed #d97706; padding: 12px; box-sizing: border-box; background: #fffbeb; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between;">
           <div>
             <span style="display: inline-block; background: #d97706; color: #ffffff; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-bottom: 6px;">SPONSORED AD</span>
-            <h3 style="font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${slot.headlineFontSize || 22}px; font-weight: 800; color: ${slot.headlineColor || '#1e3a8a'}; margin: 0 0 4px 0; line-height: 1.25;">${slot.headline || ''}</h3>
-            <p style="font-family: 'Mukta', 'Inter', sans-serif; font-size: ${slot.subHeadlineFontSize || 16}px; font-weight: 700; color: ${slot.subHeadlineColor || '#b91c1c'}; margin: 0 0 6px 0; line-height: 1.3;">${slot.subHeadline || ''}</p>
-            <div class="broadsheet-story-text" style="font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${slot.summaryFontSize || slot.bodyFontSize || 10.5}px; color: ${slot.summaryColor || slot.bodyTextColor || '#334155'}; line-height: 1.35; text-align: justify;">${slot.contentText || slot.summary || ''}</div>
+            <h3 style="font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${headlineFontSize}px; font-weight: 800; color: ${headlineColor}; margin: 0 0 4px 0; line-height: 1.25;">${headline}</h3>
+            <p style="font-family: 'Mukta', 'Inter', sans-serif; font-size: ${subHeadlineFontSize}px; font-weight: 700; color: ${subHeadlineColor}; margin: 0 0 6px 0; line-height: 1.3;">${subHeadline}</p>
+            <div class="broadsheet-story-text" style="font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: ${lineH}px; text-align: justify; overflow: hidden; box-sizing: border-box; padding-right: 2px;">${summary}</div>
           </div>
         </div>
       `;
     }
 
-    // Category Tag / Badge (Matches Canvas 100%)
-    const tagStr = (slot.categoryBadge || slot.categoryTag || '').trim();
-    const tagHtml = tagStr
-      ? `<div style="margin-bottom: 4px; display: flex; align-items: center;"><span style="display: inline-block; background-color: #dc2626; color: #ffffff; font-size: 9.5px; font-weight: 700; padding: 2px 6px; text-transform: uppercase; border-radius: 3px; font-family: 'Inter', sans-serif; letter-spacing: 0.5px; line-height: 1;">${tagStr}</span></div>`
+    const tagHtml = categoryBadge
+      ? `<div style="margin-bottom: 1px; display: flex; align-items: center;"><span style="display: inline-block; background-color: #dc2626; color: #ffffff; font-size: 9.5px; font-weight: 700; padding: 1px 6px; text-transform: uppercase; border-radius: 3px; font-family: 'Inter', sans-serif; letter-spacing: 0.5px; line-height: 1;">${categoryBadge}</span></div>`
       : '';
 
-    // Headline & Subheadline
-    const headlineHtml = slot.headline
-      ? `<h2 style="font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${slot.headlineFontSize || 24}px; color: ${slot.headlineColor || '#020617'}; line-height: 1.25; font-weight: 900; margin: 0 0 2px 0; word-break: break-word;">${slot.headline}</h2>`
+    const headlineHtml = headline
+      ? `<h2 style="font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${headlineFontSize}px; color: ${headlineColor}; line-height: 1.25; font-weight: 900; margin: 0; word-break: break-word;">${headline}</h2>`
       : '';
 
-    const subHeadlineHtml = slot.subHeadline
-      ? `<h4 style="font-family: 'Mukta', 'Inter', sans-serif; font-size: ${slot.subHeadlineFontSize || 13}px; color: ${slot.subHeadlineColor || '#b91c1c'}; line-height: 1.28; font-weight: 700; margin: 0 0 4px 0; text-align: justify; word-break: break-word;">${slot.subHeadline}</h4>`
+    const subHeadlineHtml = subHeadline
+      ? `<p style="font-family: 'Mukta', 'Inter', sans-serif; font-size: ${subHeadlineFontSize}px; color: ${subHeadlineColor}; line-height: 1.25; font-weight: 700; margin: 1px 0 0 0; text-align: justify; word-break: break-word;">${subHeadline}</p>`
       : '';
 
-    const cardContentW = Math.max(100, w - 24);
-    const colsCount = Number(slot.columnsCount || 1);
-    const colGap = Number(slot.columnGap || 14);
-    const showDivider = Boolean(slot.showColumnDivider);
-    const summaryFontSize = Number(slot.summaryFontSize || slot.bodyFontSize || 10.5);
-    const summaryColor = slot.summaryColor || slot.bodyTextColor || '#1e293b';
+    const comp = (slot.computedSections && typeof slot.computedSections === 'object' && slot.computedSections.text1 !== undefined)
+      ? slot.computedSections
+      : computeSectionsFallback({ ...slot, height: safeH });
 
-    const hasImage = Boolean(slot.imageUrl);
-    const imgW = Number(slot.imageWidth || 180);
-    const imgH = Number(slot.imageHeight || 140);
+    // Baseline integer line snapping: prevents partial lines from being cut off horizontally
+    const fullStoryH = Math.max(lineH, Math.floor((comp.fullStoryH || (safeH - 60)) / lineH) * lineH);
+    const underPhotoH = Math.max(lineH, Math.floor((comp.underPhotoH || Math.max(lineH, fullStoryH - imgH - 8)) / lineH) * lineH);
 
-    const normAlign = (slot.imageAlignment || slot.imageAlign || 'Center').toLowerCase();
-    const isLeft = normAlign === 'left';
-    const isRight = normAlign === 'right';
-    const vertAlign = slot.imageVertAlign || 'top';
-
-    const isFullWidthPhoto = imgW >= cardContentW - 30;
+    const tokens = sliceHtmlTokens(summary || '');
+    const tokensJson = JSON.stringify(tokens).replace(/</g, '\\u003c');
 
     let bodyContentHtml = '';
-    const comp = slot.computedSections;
 
     if (!hasImage) {
       bodyContentHtml = `
-        <div class="broadsheet-story-text" style="column-count: ${colsCount > 1 ? colsCount : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; height: 100%; max-height: 100%; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; word-break: break-word;">
-          ${slot.summary || slot.contentText || ''}
+        <div class="broadsheet-story-text" style="column-count: ${colsCount > 1 ? colsCount : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; width: 100%; flex: 1; min-height: 0; height: 100%; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: ${lineH}px; text-align: justify; text-justify: inter-word; word-break: break-word; white-space: pre-line; box-sizing: border-box; padding-right: 2px;">
+          ${summary}
         </div>
       `;
-    } else if (colsCount === 1 || isFullWidthPhoto || comp?.isFullWidth) {
-      let justifyAlign = 'center';
-      if (isLeft) justifyAlign = 'flex-start';
-      else if (isRight) justifyAlign = 'flex-end';
+    } else if (comp.isFullWidth || colsCount === 1) {
+      const isTopSpanPhoto = imageWrapMode === 'top-span' || imgW >= cardContentW - 30;
+      const currentImgW = isTopSpanPhoto ? cardContentW : Math.min(imgW, cardContentW);
+      const maxPxX = Math.max(0, cardContentW - currentImgW);
+
+      let photoPxX = 0;
+      if (isTopSpanPhoto) {
+        photoPxX = 0;
+      } else if (imgPxX !== undefined) {
+        photoPxX = Math.max(0, Math.min(maxPxX, imgPxX));
+      } else if (normAlign === 'left') {
+        photoPxX = 0;
+      } else if (normAlign === 'right') {
+        photoPxX = maxPxX;
+      } else {
+        photoPxX = 0;
+      }
 
       const photoDiv = `
-        <div style="width: 100%; display: flex; justify-content: ${justifyAlign}; margin-bottom: 6px; flex-shrink: 0;">
-          <div style="width: ${Math.min(imgW, cardContentW)}px; height: ${imgH}px; overflow: hidden; border-radius: 6px; border: 2px solid #cbd5e1; background: #0f172a;">
-            <img src="${slot.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+        <div style="width: 100%; margin-bottom: 4px; flex-shrink: 0;">
+          <div style="width: ${isTopSpanPhoto ? '100%' : `${currentImgW}px`}; height: ${imgH}px; margin-left: ${photoPxX}px; overflow: hidden; border-radius: 6px; border: 2px solid #cbd5e1; background: #0f172a;">
+            <img src="${imageUrl}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
           </div>
         </div>
       `;
 
       const textDiv = `
-        <div class="broadsheet-story-text" style="column-count: ${colsCount > 1 ? colsCount : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; flex: 1; height: calc(100% - ${imgH + 8}px); max-height: calc(100% - ${imgH + 8}px); overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; word-break: break-word;">
-          ${comp?.text1 || slot.summary || slot.contentText || ''}
+        <div class="broadsheet-story-text" style="column-count: ${colsCount > 1 ? colsCount : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; width: 100%; flex: 1; min-height: 0; height: 100%; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: ${lineH}px; text-align: justify; text-justify: inter-word; word-break: break-word; white-space: pre-line; box-sizing: border-box; padding-right: 2px; flex-shrink: 0;">
+          ${comp.text1 || summary}
         </div>
       `;
 
       bodyContentHtml = vertAlign === 'bottom'
-        ? `<div style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">${textDiv}${photoDiv}</div>`
-        : `<div style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">${photoDiv}${textDiv}</div>`;
+        ? `<div style="display: flex; flex-direction: column; width: 100%; flex: 1; min-height: 0; height: 100%; overflow: hidden;">${textDiv}${photoDiv}</div>`
+        : `<div style="display: flex; flex-direction: column; width: 100%; height: ${fullStoryH}px; max-height: ${fullStoryH}px; overflow: hidden;">${photoDiv}${textDiv}</div>`;
     } else {
-      // MULTI-COLUMN BROADSHEET ENGINE
-      const singleColW = comp?.singleColW || Math.max(60, Math.floor((cardContentW - (colGap * (colsCount - 1))) / colsCount));
-      const colStep = singleColW + colGap;
-      const spanCols = comp?.photoCols || Math.min(colsCount - 1, Math.max(1, Math.round((imgW + (colGap * 0.5)) / colStep)));
-      const maxStartCol = Math.max(0, colsCount - spanCols);
+      // 100% Broadsheet Multi-Column Engine matching Canvas exactly
+      const leftCols = comp.leftCols;
+      const photoCols = comp.photoCols;
+      const rightCols = comp.rightCols;
+      const leftSectionW = comp.leftSectionW;
+      const photoSectionW = comp.photoSectionW;
+      const rightSectionW = comp.rightSectionW;
 
-      let startCol = comp?.startCol ?? 0;
-      if (comp?.startCol === undefined) {
-        if (isLeft) startCol = 0;
-        else if (isRight) startCol = maxStartCol;
-        else if (slot.imgPxX !== undefined && slot.imgPxX > 0 && maxStartCol > 1) {
-          startCol = Math.max(0, Math.min(maxStartCol, Math.round(slot.imgPxX / colStep)));
-        } else {
-          startCol = Math.floor(maxStartCol / 2);
-        }
+      const displayImgW = Math.max(30, Math.min(imgW, photoSectionW));
+      const localMaxPxX = Math.max(0, photoSectionW - displayImgW);
+      let localPhotoPxX = 0;
+      if (imgPxX !== undefined) {
+        const sectionStartX = leftCols > 0 ? (leftCols * comp.singleColW) + (leftCols * colGap) : 0;
+        localPhotoPxX = Math.max(0, Math.min(localMaxPxX, imgPxX - sectionStartX));
+      } else if (normAlign === 'left') {
+        localPhotoPxX = 0;
+      } else if (normAlign === 'right') {
+        localPhotoPxX = localMaxPxX;
+      } else {
+        localPhotoPxX = 0;
       }
 
-      const leftCols = comp?.leftCols ?? startCol;
-      const photoCols = comp?.photoCols ?? spanCols;
-      const rightCols = comp?.rightCols ?? (colsCount - (startCol + spanCols));
-
-      const leftSectionW = comp?.leftSectionW ?? (leftCols > 0 ? (leftCols * singleColW) + ((leftCols - 1) * colGap) : 0);
-      const photoSectionW = comp?.photoSectionW ?? ((photoCols * singleColW) + ((photoCols - 1) * colGap));
-      const rightSectionW = comp?.rightSectionW ?? (rightCols > 0 ? (rightCols * singleColW) + ((rightCols - 1) * colGap) : 0);
-
       const photoDiv = `
-        <div style="width: 100%; height: ${imgH}px; overflow: hidden; border-radius: 6px; border: 2px solid #cbd5e1; background: #0f172a; margin-bottom: 8px; flex-shrink: 0;">
-          <img src="${slot.imageUrl}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+        <div style="width: 100%; margin-bottom: 6px; flex-shrink: 0;">
+          <div style="width: ${imgW < photoSectionW ? `${displayImgW}px` : '100%'}; height: ${imgH}px; margin-left: ${imgW < photoSectionW ? `${localPhotoPxX}px` : '0px'}; overflow: hidden; border-radius: 6px; border: 2px solid #cbd5e1; background: #0f172a;">
+            <img src="${imageUrl}" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
+          </div>
         </div>
       `;
 
-      if (comp && comp.text1 !== undefined) {
-        // EXACT CANVAS PRE-COMPUTED FIT
-        bodyContentHtml = `
-          <div
-            style="display: flex; gap: ${colGap}px; width: 100%; height: 100%; overflow: hidden; align-items: flex-start;"
-          >
-            ${leftCols > 0 ? `
-              <div class="broadsheet-story-text" style="width: ${leftSectionW}px; height: 100%; column-count: ${leftCols > 1 ? leftCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; flex-shrink: 0;">
-                ${comp.text1 || ''}
+      const colStyleCommon = `font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: ${lineH}px; text-align: justify; text-justify: inter-word; word-break: break-word; white-space: pre-line; box-sizing: border-box; padding-right: 2px;`;
+
+      bodyContentHtml = `
+        <div
+          class="broadsheet-engine"
+          data-slot-id="${sId}"
+          data-left-cols="${leftCols}"
+          data-photo-cols="${photoCols}"
+          data-right-cols="${rightCols}"
+          data-left-w="${leftSectionW}"
+          data-photo-w="${photoSectionW}"
+          data-right-w="${rightSectionW}"
+          data-full-h="${fullStoryH}"
+          data-under-h="${underPhotoH}"
+          data-font-size="${summaryFontSize}"
+          data-col-gap="${colGap}"
+          data-valign="${vertAlign}"
+          data-img-h="${imgH}"
+          style="display: flex; gap: ${colGap}px; width: 100%; flex: 1; min-height: 0; height: 100%; overflow: hidden; align-items: stretch;"
+        >
+          ${leftCols > 0 ? `
+            <div id="slot-col-left-${sId}" class="broadsheet-story-text" style="width: ${leftSectionW}px; flex: 1; min-height: 0; height: 100%; column-count: ${leftCols > 1 ? leftCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} flex-shrink: 0;">${(comp.text1 || '').trim()}</div>
+            ${showDivider ? '<div style="width: 1px; min-width: 1px; height: 100%; background-color: #cbd5e1; border-left: 1px solid #cbd5e1; flex-shrink: 0;"></div>' : ''}
+          ` : ''}
+
+          <div id="slot-sec-photo-${sId}" style="width: ${photoSectionW}px; flex: 1; min-height: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;">
+            ${vertAlign === 'bottom' ? `
+              <div id="slot-col-photo-${sId}" class="broadsheet-story-text" style="width: 100%; flex: 1; min-height: 0; column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} margin-bottom: 6px; flex-shrink: 0;">${(comp.text2 || '').trim()}</div>
+              ${photoDiv}
+            ` : vertAlign === 'middle' ? `
+              <div id="slot-col-photo-${sId}" class="broadsheet-story-text" style="width: 100%; height: ${Math.floor(underPhotoH / 2)}px; max-height: ${Math.floor(underPhotoH / 2)}px; column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} margin-bottom: 6px; flex: none;">
+                ${comp.text2 || ''}
               </div>
-              ${showDivider ? '<div style="width: 1px; min-width: 1px; align-self: stretch; background-color: #cbd5e1; border-left: 1px solid #cbd5e1; flex-shrink: 0;"></div>' : ''}
-            ` : ''}
-
-            <div style="width: ${photoSectionW}px; height: 100%; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;">
-              ${vertAlign === 'bottom' ? `
-                <div class="broadsheet-story-text" style="height: ${comp.underPhotoH}px; max-height: ${comp.underPhotoH}px; column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; margin-bottom: 6px;">
-                  ${comp.text2 || ''}
-                </div>
-                ${photoDiv}
-              ` : vertAlign === 'middle' ? `
-                <div class="broadsheet-story-text" style="height: calc(50% - ${Math.floor(imgH / 2) + 6}px); column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; margin-bottom: 6px;">
-                  ${comp.text2 || ''}
-                </div>
-                ${photoDiv}
-                <div class="broadsheet-story-text" style="height: calc(50% - ${Math.ceil(imgH / 2) + 6}px); column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; margin-top: 6px;">
-                  ${comp.text2b || ''}
-                </div>
-              ` : `
-                ${photoDiv}
-                <div class="broadsheet-story-text" style="flex: 1; height: calc(100% - ${imgH + 6}px); column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word;">
-                  ${comp.text2 || ''}
-                </div>
-              `}
-            </div>
-
-            ${rightCols > 0 ? `
-              ${showDivider ? '<div style="width: 1px; min-width: 1px; align-self: stretch; background-color: #cbd5e1; border-left: 1px solid #cbd5e1; flex-shrink: 0;"></div>' : ''}
-              <div class="broadsheet-story-text" style="width: ${rightSectionW}px; height: 100%; column-count: ${rightCols > 1 ? rightCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; flex-shrink: 0;">
-                ${comp.text3 || ''}
+              ${photoDiv}
+              <div id="slot-col-photo-b-${sId}" class="broadsheet-story-text" style="width: 100%; height: ${Math.ceil(underPhotoH / 2)}px; max-height: ${Math.ceil(underPhotoH / 2)}px; column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} margin-top: 6px; flex: 1;">
+                ${comp.text2b || ''}
               </div>
-            ` : ''}
+            ` : `
+              ${photoDiv}<div id="slot-col-photo-${sId}" class="broadsheet-story-text" style="width: 100%; flex: 1; min-height: 0; column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} flex-shrink: 0;">${(comp.text2 || '').trim()}</div>
+            `}
           </div>
-        `;
-      } else {
-        // Fallback dynamic measurement
-        slotTokensList.push({
-          id: sId,
-          tokens: sliceHtmlTokens(slot.summary || slot.contentText || ''),
-          leftCols,
-          photoCols,
-          rightCols,
-          leftW: leftSectionW,
-          photoW: photoSectionW,
-          rightW: rightSectionW,
-          fontSize: summaryFontSize,
-          vertAlign,
-          imgH
-        });
 
-        bodyContentHtml = `
-          <div
-            class="broadsheet-slot-engine"
-            data-slot-id="${sId}"
-            data-left-cols="${leftCols}"
-            data-photo-cols="${photoCols}"
-            data-right-cols="${rightCols}"
-            data-left-w="${leftSectionW}"
-            data-photo-w="${photoSectionW}"
-            data-right-w="${rightSectionW}"
-            data-gap="${colGap}"
-            data-font-size="${summaryFontSize}"
-            data-color="${summaryColor}"
-            data-divider="${showDivider ? '1' : '0'}"
-            data-valign="${vertAlign}"
-            data-imgh="${imgH}"
-            style="display: flex; gap: ${colGap}px; width: 100%; height: 100%; overflow: hidden; align-items: flex-start;"
-          >
-            ${leftCols > 0 ? `
-              <div id="slot-left-${sId}" class="broadsheet-story-text" style="width: ${leftSectionW}px; height: 100%; column-count: ${leftCols > 1 ? leftCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; flex-shrink: 0;"></div>
-              ${showDivider ? '<div style="width: 1px; min-width: 1px; align-self: stretch; background-color: #cbd5e1; border-left: 1px solid #cbd5e1; flex-shrink: 0;"></div>' : ''}
-            ` : ''}
+          ${rightCols > 0 ? `
+            ${showDivider ? '<div style="width: 1px; min-width: 1px; height: 100%; background-color: #cbd5e1; border-left: 1px solid #cbd5e1; flex-shrink: 0;"></div>' : ''}
+            <div id="slot-col-right-${sId}" class="broadsheet-story-text" style="width: ${rightSectionW}px; flex: 1; min-height: 0; height: 100%; column-count: ${rightCols > 1 ? rightCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} flex-shrink: 0;">${(comp.text3 || '').trim()}</div>
+          ` : ''}
 
-            <div style="width: ${photoSectionW}px; height: 100%; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;">
-              ${vertAlign === 'bottom' ? `
-                <div id="slot-photo-${sId}" class="broadsheet-story-text" style="flex: 1; height: calc(100% - ${imgH + 6}px); column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; margin-bottom: 6px;"></div>
-                ${photoDiv}
-              ` : vertAlign === 'middle' ? `
-                <div id="slot-photo-top-${sId}" class="broadsheet-story-text" style="height: calc(50% - ${Math.floor(imgH / 2) + 6}px); column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; margin-bottom: 6px;"></div>
-                ${photoDiv}
-                <div id="slot-photo-bot-${sId}" class="broadsheet-story-text" style="height: calc(50% - ${Math.ceil(imgH / 2) + 6}px); column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; margin-top: 6px;"></div>
-              ` : `
-                ${photoDiv}
-                <div id="slot-photo-${sId}" class="broadsheet-story-text" style="flex: 1; height: calc(100% - ${imgH + 6}px); column-count: ${photoCols > 1 ? photoCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word;"></div>
-              `}
-            </div>
-
-            ${rightCols > 0 ? `
-              ${showDivider ? '<div style="width: 1px; min-width: 1px; align-self: stretch; background-color: #cbd5e1; border-left: 1px solid #cbd5e1; flex-shrink: 0;"></div>' : ''}
-              <div id="slot-right-${sId}" class="broadsheet-story-text" style="width: ${rightSectionW}px; height: 100%; column-count: ${rightCols > 1 ? rightCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: 1.35; text-align: justify; text-justify: inter-word; flex-shrink: 0;"></div>
-            ` : ''}
-          </div>
-        `;
-      }
+          <script type="application/json" id="slot-tokens-data-${sId}">${tokensJson}</script>
+        </div>
+      `;
     }
 
     return `
       <div
         id="slot-container-${sId}"
-        style="position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${h}px; border: none; padding: 8px; box-sizing: border-box; background: #fffdf7; overflow: hidden; display: flex; flex-direction: column;"
+        style="position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${safeH}px; border: none; padding: 8px 8px 4px 8px; box-sizing: border-box; background: transparent; overflow: hidden; display: flex; flex-direction: column;"
       >
-        <div style="margin-bottom: 4px; flex-shrink: 0;">
+        <div id="slot-header-${sId}" style="margin-bottom: 2px; flex-shrink: 0;">
           ${tagHtml}
           ${headlineHtml}
           ${subHeadlineHtml}
         </div>
-        <div style="flex: 1; min-height: 0; overflow: hidden; width: 100%;">
+        <div id="slot-body-${sId}" style="flex: 1; min-height: 0; overflow: hidden; width: 100%;">
           ${bodyContentHtml}
         </div>
       </div>
@@ -277,39 +467,36 @@ function buildPageFragment(opts, pageObj, pIdx) {
       <!-- TOP DATE LINE BAR -->
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #0f172a; padding-bottom: 2px; margin-bottom: 2px; font-size: 12px; font-weight: 700; color: #1e293b; font-family: 'Mukta', 'Inter', sans-serif; line-height: 1.15;">
         <div>${cityStr} • ${formattedDate}</div>
-        <div style="font-style: italic; color: #475569; font-family: 'Noto Serif Devanagari', 'Merriweather', serif;">डिजिटल संस्करण • e-paper</div>
+        <div style="font-style: italic; color: #475569; font-family: 'Noto Serif Devanagari', 'Merriweather', serif;">डिजिटल संस्करण • epaper</div>
         <div>पेज 0${pageNum}</div>
       </div>
 
       <!-- BIG RED BROADSHEET MASTHEAD -->
       <header style="text-align: center; border-bottom: 4px double #0f172a; padding-bottom: 4px; margin-bottom: 0px;">
-        <h1 style="font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: 56px; font-weight: 900; color: #b91c1c; margin: 0; letter-spacing: -1px; text-transform: uppercase; line-height: 0.95;">
+        <h1 style="font-size: 68px; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; color: #dc2626; margin: 0; line-height: 0.95; letter-spacing: -1px;">
           ${mainTitle}
         </h1>
-        <div style="display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; color: #334155; margin-top: 2px; font-family: 'Mukta', 'Inter', sans-serif; line-height: 1.1;">
-          <span style="background: #fbbf24; color: #020617; padding: 1px 6px; border-radius: 4px; font-weight: 900;">Free-Form Canvas</span>
-          <span>•</span>
-          <span>${stateStr}</span>
-          <span>•</span>
-          <span>${editionName}</span>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 4px;">
+          <span style="display: inline-block; background-color: #f59e0b; color: #020617; font-size: 10px; font-weight: 900; padding: 1px 6px; border-radius: 3px; font-family: 'Inter', sans-serif; letter-spacing: 0.5px;">FREE-FORM CANVAS</span>
+          <span style="font-size: 11px; font-weight: 700; color: #1e293b; font-family: 'Mukta', sans-serif;">• ${stateStr}</span>
         </div>
       </header>
 
-      <!-- SLOTS POSITIONED AT EXACT X & Y INSIDE BROADSHEET PAGE -->
+      <!-- SLOTS DIRECT ON BROADSHEET CANVAS (EXACT 1:1 REPLICA OF ADMIN CANVAS & WEBSITE MODAL) -->
       ${slotsHtml}
 
       <!-- FOOTER -->
-      <footer style="position: absolute; bottom: 12px; left: 40px; right: 40px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 6px; font-family: 'Mukta', 'Inter', sans-serif;">
-        <div>डिजिटल ई-पेपर संस्करण • ${cityStr} • ${stateStr} • सर्वाधिकार सुरक्षित</div>
-        <div>पेज 0${pageNum}</div>
+      <footer style="position: absolute; bottom: 12px; left: 40px; right: 40px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #cbd5e1; padding-top: 4px; font-size: 10px; font-family: 'Mukta', 'Inter', sans-serif; color: #64748b;">
+        <span>दैनिक समाचार पत्र • डिजिटल ई-संस्करण • ${stateStr}</span>
+        <span>पेज 0${pageNum}</span>
       </footer>
     </div>
   `;
 
-  return { pageHtml, slotTokensList };
+  return { pageHtml };
 }
 
-function wrapFullDocument(pagesHtml, allSlotsList, title = 'Broadsheet E-Paper') {
+export function wrapFullDocument(pagesHtml, title = 'Broadsheet E-Paper') {
   return `<!DOCTYPE html>
 <html lang="hi">
 <head>
@@ -351,9 +538,14 @@ function wrapFullDocument(pagesHtml, allSlotsList, title = 'Broadsheet E-Paper')
       font-weight: 800 !important;
       color: #020617 !important;
     }
-    .broadsheet-story-text, .broadsheet-story-text * {
-      font-family: 'Noto Serif Devanagari', 'Merriweather', serif !important;
-      line-height: 1.35 !important;
+    .broadsheet-story-text {
+      font-family: 'Noto Serif Devanagari', 'Merriweather', serif;
+      overflow: hidden;
+      box-sizing: border-box;
+      padding-right: 2px;
+      word-break: break-word;
+      text-align: justify;
+      text-justify: inter-word;
     }
     @page {
       size: 1344px 2112px;
@@ -377,134 +569,6 @@ function wrapFullDocument(pagesHtml, allSlotsList, title = 'Broadsheet E-Paper')
 <body>
   ${pagesHtml}
 
-  <script>
-    (function() {
-      try {
-        var rawSlotsData = ${JSON.stringify(allSlotsList || [])};
-
-        function buildHtml(allTokens, start, end) {
-          if (!allTokens || start >= end || start >= allTokens.length) return '';
-          var html = '';
-          for (var i = start; i < end && i < allTokens.length; i++) {
-            html += allTokens[i];
-          }
-          return html;
-        }
-
-        function measureFit(tokens, startIdx, targetW, targetH, cols, fSize) {
-          if (startIdx >= tokens.length) return tokens.length;
-          var testDiv = document.createElement('div');
-          testDiv.style.position = 'fixed';
-          testDiv.style.left = '-9999px';
-          testDiv.style.top = '-9999px';
-          testDiv.style.visibility = 'hidden';
-          testDiv.style.width = targetW + 'px';
-          testDiv.style.height = targetH + 'px';
-          testDiv.style.maxHeight = targetH + 'px';
-          testDiv.style.overflow = 'hidden';
-          testDiv.style.fontFamily = "'Noto Serif Devanagari', 'Merriweather', serif";
-          testDiv.style.fontSize = fSize + 'px';
-          testDiv.style.lineHeight = '1.35';
-          testDiv.style.textAlign = 'justify';
-          testDiv.style.textJustify = 'inter-word';
-          testDiv.style.wordBreak = 'break-word';
-          testDiv.style.padding = '0';
-          testDiv.style.margin = '0';
-          testDiv.style.boxSizing = 'border-box';
-          if (cols > 1) {
-            testDiv.style.columnCount = cols;
-            testDiv.style.columnGap = '14px';
-            testDiv.style.columnFill = 'auto';
-          }
-          document.body.appendChild(testDiv);
-
-          var low = startIdx;
-          var high = tokens.length;
-          var best = startIdx;
-
-          while (low <= high) {
-            var mid = Math.floor((low + high) / 2);
-            testDiv.innerHTML = buildHtml(tokens, startIdx, mid);
-            var fits = cols === 1
-              ? (testDiv.scrollHeight <= targetH + 2)
-              : (testDiv.scrollWidth <= targetW + 2 && testDiv.scrollHeight <= targetH + 2);
-            if (fits) {
-              best = mid;
-              low = mid + 1;
-            } else {
-              high = mid - 1;
-            }
-          }
-          document.body.removeChild(testDiv);
-          return Math.max(startIdx + 1, best);
-        }
-
-        var engines = document.querySelectorAll('.broadsheet-slot-engine');
-        engines.forEach(function(engine) {
-          var sId = engine.getAttribute('data-slot-id');
-          var slotInfo = rawSlotsData.find(function(s) { return String(s.id) === String(sId); });
-          if (!slotInfo || !slotInfo.tokens || slotInfo.tokens.length === 0) return;
-
-          var tokens = slotInfo.tokens;
-          var leftCols = parseInt(engine.getAttribute('data-left-cols') || '0', 10);
-          var photoCols = parseInt(engine.getAttribute('data-photo-cols') || '1', 10);
-          var rightCols = parseInt(engine.getAttribute('data-right-cols') || '0', 10);
-          var leftW = parseFloat(engine.getAttribute('data-left-w') || '0');
-          var photoW = parseFloat(engine.getAttribute('data-photo-w') || '0');
-          var rightW = parseFloat(engine.getAttribute('data-right-w') || '0');
-          var fSize = parseFloat(engine.getAttribute('data-font-size') || '10.5');
-          var vAlign = engine.getAttribute('data-valign') || 'top';
-          var imgH = parseFloat(engine.getAttribute('data-imgh') || '140');
-          var totalH = engine.clientHeight || 250;
-
-          var curIdx = 0;
-
-          if (leftCols > 0) {
-            var elLeft = document.getElementById('slot-left-' + sId);
-            if (elLeft) {
-              var fit1 = measureFit(tokens, curIdx, leftW, totalH, leftCols, fSize);
-              elLeft.innerHTML = buildHtml(tokens, curIdx, fit1);
-              curIdx = fit1;
-            }
-          }
-
-          var underH = Math.max(30, totalH - imgH - 8);
-          if (vAlign === 'middle') {
-            var halfH = Math.max(20, Math.floor(underH / 2));
-            var elMidTop = document.getElementById('slot-photo-top-' + sId);
-            if (elMidTop && curIdx < tokens.length) {
-              var fitMid1 = measureFit(tokens, curIdx, photoW, halfH, photoCols, fSize);
-              elMidTop.innerHTML = buildHtml(tokens, curIdx, fitMid1);
-              curIdx = fitMid1;
-            }
-            var elMidBot = document.getElementById('slot-photo-bot-' + sId);
-            if (elMidBot && curIdx < tokens.length) {
-              var fitMid2 = measureFit(tokens, curIdx, photoW, halfH, photoCols, fSize);
-              elMidBot.innerHTML = buildHtml(tokens, curIdx, fitMid2);
-              curIdx = fitMid2;
-            }
-          } else {
-            var elPhoto = document.getElementById('slot-photo-' + sId);
-            if (elPhoto && curIdx < tokens.length) {
-              var fit2 = measureFit(tokens, curIdx, photoW, underH, photoCols, fSize);
-              elPhoto.innerHTML = buildHtml(tokens, curIdx, fit2);
-              curIdx = fit2;
-            }
-          }
-
-          if (rightCols > 0) {
-            var elRight = document.getElementById('slot-right-' + sId);
-            if (elRight && curIdx < tokens.length) {
-              var fit3 = measureFit(tokens, curIdx, rightW, totalH, rightCols, fSize);
-              elRight.innerHTML = buildHtml(tokens, curIdx, fit3);
-            }
-          }
-        });
-      } catch (e) {
-        console.error('Puppeteer client script error:', e);
-      }
-    })();
-  </script>
 </body>
 </html>`;
 }
@@ -534,84 +598,73 @@ export async function generateIssuePdf(opts) {
     const pageImageUrls = [];
 
     const allPagesFragments = [];
-    let combinedSlotsList = [];
 
-    // Render each page screenshot (WebP)
-    for (let i = 0; i < pages.length; i++) {
-      const pageObj = pages[i];
-      const pageNum = pageObj.pageNumber || (i + 1);
-      const { pageHtml, slotTokensList } = buildPageFragment(opts, pageObj, i);
+    for (let pIdx = 0; pIdx < pages.length; pIdx++) {
+      const pageObj = pages[pIdx];
+      const pageNum = pageObj.pageNumber || (pIdx + 1);
 
+      const { pageHtml } = buildPageFragment(opts, pageObj, pIdx);
       allPagesFragments.push(pageHtml);
-      combinedSlotsList = combinedSlotsList.concat(slotTokensList);
 
-      const singlePageDoc = wrapFullDocument(pageHtml, slotTokensList, `Page ${pageNum}`);
+      // Render individual single page for high-res screenshot (WebP)
+      const singleDocHtml = wrapFullDocument(pageHtml, `Page ${pageNum} - ${editionSlug}`);
+      const singlePage = await browser.newPage();
+      await singlePage.setViewport({ width: 1344, height: 2112, deviceScaleFactor: 2 });
+      await singlePage.setContent(singleDocHtml, { waitUntil: 'networkidle0' });
 
-      const pageTab = await browser.newPage();
-      await pageTab.setViewport({ width: 1344, height: 2112, deviceScaleFactor: 2 });
-      await pageTab.setContent(singlePageDoc, { waitUntil: 'load', timeout: 30000 });
+      // Ensure all web fonts are loaded
+      await singlePage.evaluateHandle('document.fonts.ready');
+      // Layout runs purely on exact pre-computed canvas sections
 
-      // Wait for all webfonts to be 100% loaded before screenshotting!
-      try {
-        await pageTab.evaluateHandle('document.fonts.ready');
-      } catch (_) {}
+      const pageImgFilename = `${editionSlug}-${publishDate}-page-${pageNum}.webp`;
+      const pageImgPath = path.join(pageImgDir, pageImgFilename);
 
-      await new Promise(r => setTimeout(r, 400));
-
-      const pageImgName = `${editionSlug}-${publishDate}-page-${pageNum}.webp`;
-      const pageImgPath = path.join(pageImgDir, pageImgName);
-
-      await pageTab.screenshot({
+      await singlePage.screenshot({
         path: pageImgPath,
         type: 'webp',
-        quality: 90,
-        fullPage: true
+        quality: 98,
+        clip: { x: 0, y: 0, width: 1344, height: 2112 }
       });
 
-      const pageImgPublicUrl = `/uploads/epaper/pages/${pageImgName}`;
-      pageImageUrls.push({ pageNumber: pageNum, pageImage: pageImgPublicUrl });
-      await pageTab.close();
+      await singlePage.close();
+
+      pageImageUrls.push({
+        pageNumber: pageNum,
+        pageImage: `/uploads/epaper/pages/${pageImgFilename}`
+      });
     }
 
-    // Now render full compiled PDF
+    // Compile full multi-page PDF
+    const fullDocHtml = wrapFullDocument(allPagesFragments.join('\n'), `${editionSlug} - ${publishDate}`);
     const fullPdfPage = await browser.newPage();
     await fullPdfPage.setViewport({ width: 1344, height: 2112, deviceScaleFactor: 2 });
+    await fullPdfPage.setContent(fullDocHtml, { waitUntil: 'networkidle0' });
+    await fullPdfPage.evaluateHandle('document.fonts.ready');
+    // Layout runs purely on exact pre-computed canvas sections
 
-    const fullDoc = wrapFullDocument(allPagesFragments.join(''), combinedSlotsList, 'Broadsheet E-Paper PDF');
-
-    await fullPdfPage.setContent(fullDoc, { waitUntil: 'load', timeout: 30000 });
-
-    try {
-      await fullPdfPage.evaluateHandle('document.fonts.ready');
-    } catch (_) {}
-
-    await new Promise(r => setTimeout(r, 500));
-
-    const timestamp = Date.now();
-    const pdfFileName = `epaper-${editionSlug}-${publishDate}-${timestamp}.pdf`;
-    const pdfFilePath = path.join(pdfDir, pdfFileName);
+    const pdfFilename = `epaper-${editionSlug}-${publishDate}-${Date.now()}.pdf`;
+    const pdfPath = path.join(pdfDir, pdfFilename);
 
     await fullPdfPage.pdf({
-      path: pdfFilePath,
+      path: pdfPath,
       width: '1344px',
       height: '2112px',
       printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
-      timeout: 120000
+      margin: { top: 0, right: 0, bottom: 0, left: 0 }
     });
+
+    // Also maintain a fixed latest copy for reliable downloading
+    const latestPdfFilename = `epaper-${editionSlug}-${publishDate}.pdf`;
+    const latestPdfPath = path.join(pdfDir, latestPdfFilename);
+    fs.copyFileSync(pdfPath, latestPdfPath);
 
     await fullPdfPage.close();
 
-    try {
-      const canonicalPath = path.join(pdfDir, `epaper-${editionSlug}-${publishDate}.pdf`);
-      fs.copyFileSync(pdfFilePath, canonicalPath);
-    } catch (copyErr) {
-      // Ignored if canonical file is locked
-    }
-
-    const publicUrl = `/uploads/pdfs/${pdfFileName}`;
-    return { filePath: pdfFilePath, publicUrl, pageImages: pageImageUrls };
+    return {
+      pdfUrl: `/uploads/pdfs/${pdfFilename}`,
+      latestPdfUrl: `/uploads/pdfs/${latestPdfFilename}`,
+      pageImages: pageImageUrls
+    };
   } finally {
     await browser.close();
   }

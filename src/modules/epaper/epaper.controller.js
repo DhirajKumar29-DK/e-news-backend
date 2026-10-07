@@ -1,4 +1,4 @@
-﻿import { sendSuccess } from '../../utils/response.js';
+import { sendSuccess } from '../../utils/response.js';
 import * as epaperService from './epaper.service.js';
 import { processAiEditorPrompt } from './aiAgent.service.js';
 
@@ -42,7 +42,9 @@ export const saveSlot = async (req, res, next) => {
 
 export const publishPaper = async (req, res, next) => {
   try {
-    const { editionSlug, publishDate, status, pages } = req.body;
+    const editionSlug = req.body.editionSlug || req.body.edition || 'patna-main';
+    const publishDate = req.body.publishDate || req.body.date || new Date().toISOString().split('T')[0];
+    const { status, pages } = req.body;
     const result = await epaperService.publishPaper(editionSlug, publishDate, status, pages);
     return res.status(200).json({
       success: true,
@@ -60,7 +62,9 @@ export const publishPaper = async (req, res, next) => {
 
 export const addPage = async (req, res, next) => {
   try {
-    const { editionSlug, publishDate, pageNumber, title, templateKey } = req.body;
+    const editionSlug = req.body.editionSlug || req.body.edition || 'patna-main';
+    const publishDate = req.body.publishDate || req.body.date || new Date().toISOString().split('T')[0];
+    const { pageNumber, title, templateKey } = req.body;
     const result = await epaperService.addPage(editionSlug, publishDate, pageNumber, title, templateKey);
     return sendSuccess(res, 'Page added successfully', result, 201);
   } catch (error) {
@@ -70,10 +74,15 @@ export const addPage = async (req, res, next) => {
 
 export const generatePdf = async (req, res, next) => {
   try {
-    const { editionSlug, editionName, editionTitle, editionCity, editionState, publishDate, pages } = req.body;
-    if (!editionSlug || !publishDate) {
-      return res.status(400).json({ success: false, message: 'editionSlug and publishDate are required' });
+    let body = req.body || {};
+    if (typeof body.data === 'string') {
+      try { body = { ...body, ...JSON.parse(body.data) }; } catch {}
+    } else if (body.data && typeof body.data === 'object') {
+      body = { ...body, ...body.data };
     }
+    const editionSlug = body.editionSlug || body.edition || 'patna-main';
+    const publishDate = body.publishDate || body.date || new Date().toISOString().split('T')[0];
+    const { editionName, editionTitle, editionCity, editionState, pages } = body;
     const result = await epaperService.generateIssuePdfService({ editionSlug, editionName, editionTitle, editionCity, editionState, publishDate, pages });
     return sendSuccess(res, result.message, result);
   } catch (error) {
@@ -83,7 +92,9 @@ export const generatePdf = async (req, res, next) => {
 
 export const savePagesBulk = async (req, res, next) => {
   try {
-    const { editionSlug, publishDate, pages } = req.body;
+    const editionSlug = req.body.editionSlug || req.body.edition || 'patna-main';
+    const publishDate = req.body.publishDate || req.body.date || new Date().toISOString().split('T')[0];
+    const pages = req.body.pages || [];
     const result = await epaperService.savePagesBulk(editionSlug, publishDate, pages);
     return sendSuccess(res, result.message, result);
   } catch (error) {
