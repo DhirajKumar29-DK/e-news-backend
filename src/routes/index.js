@@ -1,7 +1,8 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import authRoutes from '../modules/auth/auth.routes.js';
 import editionRoutes from '../modules/edition/edition.routes.js';
 import epaperRoutes from '../modules/epaper/epaper.routes.js';
+import articleRoutes from '../modules/article/article.routes.js';
 
 const router = Router();
 
@@ -17,5 +18,6 @@ router.get('/health', (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/editions', editionRoutes);
 router.use('/epaper', epaperRoutes);
+router.use('/articles', articleRoutes);
 
 export default router;

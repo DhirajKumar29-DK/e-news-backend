@@ -135,3 +135,34 @@ model PaperSlot {
   @@map("paper_slots")
 }
 
+
+model Article {
+  id              String    @id @default(uuid())
+  title           String    @db.Text
+  slug            String    @unique
+  subHeadline     String?   @db.Text
+  content         String    @db.LongText
+  category        String
+  subCategory     String?
+  featuredImage   String?   @db.LongText
+  imageCaption    String?   @db.Text
+  authorName      String    @default("News Desk")
+  authorAvatar    String?
+  bulletPoints    String?   @db.Text
+  tags            String?   @db.Text
+  isLeadStory     Boolean   @default(false)
+  isTrending      Boolean   @default(false)
+  status          String    @default("PUBLISHED")
+  viewsCount      Int       @default(0)
+  likesCount      Int       @default(0)
+  readTimeMinutes Int       @default(3)
+  publishedAt     DateTime  @default(now())
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([deletedAt])
+  @@map("articles")
+}
