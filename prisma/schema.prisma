@@ -166,3 +166,100 @@ model Article {
   @@index([deletedAt])
   @@map("articles")
 }
+
+
+model Video {
+  id              String    @id @default(uuid())
+  title           String    @db.Text
+  slug            String    @unique
+  description     String?   @db.LongText
+  videoType       String    @default("URL") // "URL" or "UPLOAD"
+  videoUrl        String    @db.LongText
+  youtubeId       String?
+  thumbnailUrl    String?   @db.LongText
+  duration        String    @default("00:00")
+  durationSeconds Int?      @default(0)
+  category        String    @default("news")
+  subCategory     String?
+  badge           String?
+  location        String?
+  reporterName    String    @default("News Desk")
+  metaTitle       String?   @db.Text
+  metaDescription String?   @db.Text
+  tags            String?   @db.Text
+  isFeaturedHero  Boolean   @default(false)
+  isTrending      Boolean   @default(false)
+  status          String    @default("PUBLISHED")
+  viewsCount      Int       @default(0)
+  likesCount      Int       @default(0)
+  publishedAt     DateTime  @default(now())
+  deletedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([isTrending])
+  @@index([isFeaturedHero])
+  @@index([deletedAt])
+  @@map("videos")
+}
+
+model Horoscope {
+  id              String   @id @default(uuid())
+  sign            String
+  signName        String
+  hindiName       String?
+  dateRange       String?
+  period          String   @default("DAILY")
+  luckyColour     String?
+  luckyGemstone   String?
+  luckyDay        String?
+  luckyNumber     String?
+  rulingPlanet    String?
+  compatibleSign  String?
+  prediction      String   @db.LongText
+  remedy          String?  @db.Text
+  date            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([sign, period])
+  @@index([sign])
+  @@index([period])
+  @@map("horoscopes")
+}
+
+
+model WeatherState {
+  id        String        @id @default(uuid())
+  name      String
+  slug      String        @unique
+  order     Int           @default(0)
+  active    Boolean       @default(true)
+  cities    WeatherCity[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("weather_states")
+}
+
+model WeatherCity {
+  id           String       @id @default(uuid())
+  stateId      String
+  state        WeatherState @relation(fields: [stateId], references: [id], onDelete: Cascade)
+  name         String
+  slug         String       @unique
+  latitude     Float
+  longitude    Float
+  monumentIcon String?      @db.Text
+  isMainCity   Boolean      @default(false)
+  order        Int          @default(0)
+  active       Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([stateId])
+  @@index([isMainCity])
+  @@map("weather_cities")
+}
