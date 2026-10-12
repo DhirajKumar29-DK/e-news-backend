@@ -6,6 +6,8 @@ import articleRoutes from '../modules/article/article.routes.js';
 import videoRoutes from '../modules/video/video.routes.js';
 import horoscopeRoutes from '../modules/horoscope/horoscope.routes.js';
 import weatherRoutes from '../modules/weather/weather.routes.js';
+import categoryRoutes from '../modules/category/category.routes.js';
+import cricketRoutes from '../modules/cricket/cricket.routes.js';
 
 const router = Router();
 
@@ -25,5 +27,7 @@ router.use('/articles', articleRoutes);
 router.use('/videos', videoRoutes);
 router.use('/horoscope', horoscopeRoutes);
 router.use('/weather', weatherRoutes);
+router.use('/categories', categoryRoutes);
+router.use('/cricket', cricketRoutes);
 
 export default router;

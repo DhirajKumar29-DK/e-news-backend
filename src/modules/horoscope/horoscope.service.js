@@ -16,7 +16,7 @@ export async function getHoroscope(sign, period = 'DAILY') {
     });
 
     if (record) {
-      return record;
+      return { ...record, iconUrl: record.hindiName || null };
     }
   } catch (err) {
     console.error('Error fetching horoscope from DB, using fallback:', err.message);
@@ -29,6 +29,7 @@ export async function getHoroscope(sign, period = 'DAILY') {
     sign: defaultSign.sign,
     signName: defaultSign.signName,
     hindiName: defaultSign.hindiName,
+    iconUrl: defaultSign.hindiName && defaultSign.hindiName.startsWith('http') ? defaultSign.hindiName : null,
     dateRange: defaultSign.dateRange,
     period: normPeriod,
     luckyColour: defaultSign.luckyColour,
@@ -59,11 +60,12 @@ export async function upsertHoroscope(data) {
   const normSign = (data.sign || 'taurus').toLowerCase();
   const normPeriod = (data.period || 'DAILY').toUpperCase();
   const defaultMeta = DEFAULT_ZODIAC_DATA[normSign] || DEFAULT_ZODIAC_DATA.taurus;
+  const customIcon = typeof data.iconUrl !== 'undefined' ? data.iconUrl : data.hindiName;
 
   const payload = {
     sign: normSign,
     signName: data.signName || defaultMeta.signName,
-    hindiName: data.hindiName || defaultMeta.hindiName,
+    hindiName: customIcon !== undefined ? customIcon : defaultMeta.hindiName,
     dateRange: data.dateRange || defaultMeta.dateRange,
     period: normPeriod,
     luckyColour: data.luckyColour || defaultMeta.luckyColour,
@@ -88,7 +90,19 @@ export async function upsertHoroscope(data) {
     create: payload
   });
 
-  return record;
+  // Sync icon across all periods for this sign
+  if (customIcon !== undefined) {
+    try {
+      await prisma.horoscope.updateMany({
+        where: { sign: normSign },
+        data: { hindiName: customIcon }
+      });
+    } catch (syncErr) {
+      console.warn('Could not sync sign icon across periods:', syncErr.message);
+    }
+  }
+
+  return { ...record, iconUrl: record.hindiName || null };
 }
 
 export async function seedHoroscopes() {

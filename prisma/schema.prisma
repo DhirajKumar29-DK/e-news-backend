@@ -263,3 +263,16 @@ model WeatherCity {
   @@index([isMainCity])
   @@map("weather_cities")
 }
+
+model Category {
+  id         String   @id @default(uuid())
+  name       String   @unique
+  slug       String   @unique
+  order      Int      @default(0)
+  isActive   Boolean  @default(true)
+  showOnHome Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("categories")
+}

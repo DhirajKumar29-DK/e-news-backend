@@ -241,17 +241,31 @@ export const getHomeArticles = async () => {
     ...topNewsIds
   ];
 
-  const quickHighlights = await prisma.article.findMany({
-    where: {
-      ...baseWhere,
-      id: { notIn: excludedFromHighlights }
-    },
-    take: 5,
-    orderBy: [
-      { viewsCount: 'desc' },
-      { publishedAt: 'desc' }
-    ]
-  });
+  let quickHighlights = await prisma.article.findMany({
+      where: {
+        ...baseWhere,
+        tags: { contains: 'quick_highlight' },
+        id: { notIn: excludedFromHighlights }
+      },
+      take: 5,
+      orderBy: { publishedAt: 'desc' }
+    });
+
+    if (quickHighlights.length < 5) {
+      const existingHighlightIds = quickHighlights.map(q => q.id);
+      const extra = await prisma.article.findMany({
+        where: {
+          ...baseWhere,
+          id: { notIn: [...excludedFromHighlights, ...existingHighlightIds] }
+        },
+        take: 5 - quickHighlights.length,
+        orderBy: [
+          { viewsCount: 'desc' },
+          { publishedAt: 'desc' }
+        ]
+      });
+      quickHighlights = [...quickHighlights, ...extra];
+    }
 
   const categoryKeys = ['entertainment', 'world', 'explainer', 'lifestyle', 'auto', 'tech', 'education', 'business', 'fashion', 'cricket', 'sports', 'national', 'india'];
   const categories = {};
