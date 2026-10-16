@@ -233,7 +233,7 @@ function transformMatch(m) {
       wickets: parseInt(t1Score.split('/')[1] || '0', 10),
       runs: parseInt(t1Score.split('/')[0] || '0', 10),
       logo: getTeamLogo(team1Name),
-      isBatting: innings.length > 0 && innings[innings.length - 1].battingteam === t1.team_Id
+      isBatting: status === 'LIVE' && innings.length > 0 && innings[innings.length - 1].battingteam === t1.team_Id
     },
     team2: {
       id: t2.team_Id || m.teamb_Id,
@@ -245,7 +245,7 @@ function transformMatch(m) {
       wickets: parseInt(t2Score.split('/')[1] || '0', 10),
       runs: parseInt(t2Score.split('/')[0] || '0', 10),
       logo: getTeamLogo(team2Name),
-      isBatting: innings.length > 0 && innings[innings.length - 1].battingteam === t2.team_Id
+      isBatting: status === 'LIVE' && innings.length > 0 && innings[innings.length - 1].battingteam === t2.team_Id
     }
   };
 }
@@ -371,11 +371,26 @@ export async function getLiveMatchWidget(matchId) {
   const match = transformMatch(matchItem);
   const code = match.code || matchItem.matchdetail?.match?.code;
 
+  // If match is NOT live, return clean match details with no crease data
+  if (match.status !== 'LIVE' || !match.isLive) {
+    return {
+      match,
+      currentBatters: [],
+      currentBowler: null,
+      thisOverBalls: [],
+      partnership: null,
+      lastWicket: '',
+      equation: match.statusText,
+      crr: '',
+      rrr: ''
+    };
+  }
+
   // Attempt to fetch detailed live scorecard to get real on-crease batsmen & bowler
   let liveBatters = [];
-  let liveBowler = { name: 'Bowler', overs: '0.0', maidens: 0, runs: 0, wickets: 0, economy: '0.0' };
-  let thisOverBalls = ['1', '0', '4', '0', '1', '2'];
-  let partnership = { runs: 24, balls: 18, runRate: '8.00' };
+  let liveBowler = null;
+  let thisOverBalls = [];
+  let partnership = null;
 
   if (code) {
     const scData = await getDetailedScorecardByCode(code);
@@ -386,40 +401,90 @@ export async function getLiveMatchWidget(matchId) {
       const battingPlayers = scData.rawScorecard.Teams?.[battingTeamId]?.Players || {};
       const bowlingPlayers = scData.rawScorecard.Teams?.[bowlingTeamId]?.Players || {};
 
-      // Get batters with status not out
-      const notOutBatters = (activeInn.Batsmen || []).filter(b => !b.Howout || b.Howout === '' || b.Howout.toLowerCase().includes('not out'));
-      if (notOutBatters.length > 0) {
-        liveBatters = notOutBatters.slice(0, 2).map((b, idx) => ({
-          name: battingPlayers[b.Batsman]?.Name_Full || battingPlayers[b.Batsman]?.Name_Short || `Batter ${idx+1}`,
-          runs: parseInt(b.Runs || '0', 10),
-          balls: parseInt(b.Balls || '0', 10),
-          fours: parseInt(b.Fours || '0', 10),
-          sixes: parseInt(b.Sixes || '0', 10),
-          strikeRate: b.Strikerate || '0.0',
-          isStriker: idx === 0
-        }));
+      // 1. First priority: Check active on-crease partnership (actual batsmen on crease)
+      const currentPartnershipBatsmen = activeInn.Partnership_Current?.Batsmen || [];
+      if (currentPartnershipBatsmen.length > 0) {
+        liveBatters = currentPartnershipBatsmen.map((p, idx) => {
+          const fullInfo = (activeInn.Batsmen || []).find(b => String(b.Batsman) === String(p.Batsman)) || {};
+          const pName = battingPlayers[p.Batsman]?.Name_Full || battingPlayers[p.Batsman]?.Name_Short || fullInfo.Name || `Batter ${idx+1}`;
+          const runs = parseInt(fullInfo.Runs !== undefined && fullInfo.Runs !== '' ? fullInfo.Runs : (p.Runs || '0'), 10);
+          const balls = parseInt(fullInfo.Balls !== undefined && fullInfo.Balls !== '' ? fullInfo.Balls : (p.Balls || '0'), 10);
+          const fours = parseInt(fullInfo.Fours || '0', 10);
+          const sixes = parseInt(fullInfo.Sixes || '0', 10);
+          const strikeRate = fullInfo.Strikerate || (balls > 0 ? ((runs / balls) * 100).toFixed(1) : '0.0');
+          return {
+            name: pName,
+            runs,
+            balls,
+            fours,
+            sixes,
+            strikeRate,
+            isStriker: idx === 0
+          };
+        });
+      }
+
+      // 2. Second priority: If no partnership data, only pick batters who actually batted and are NOT out
+      if (liveBatters.length < 2) {
+        const notOutBatters = (activeInn.Batsmen || []).filter(b => {
+          const howout = (b.Howout || '').trim().toLowerCase();
+          const hasNotOut = howout.includes('not out');
+          const isNotDismissed = !howout || howout === '';
+          const hasFacedBalls = parseInt(b.Balls || '0', 10) > 0 || parseInt(b.Runs || '0', 10) > 0;
+          return hasNotOut || (isNotDismissed && hasFacedBalls);
+        });
+
+        if (notOutBatters.length > 0) {
+          liveBatters = notOutBatters.slice(0, 2).map((b, idx) => ({
+            name: battingPlayers[b.Batsman]?.Name_Full || battingPlayers[b.Batsman]?.Name_Short || `Batter ${idx+1}`,
+            runs: parseInt(b.Runs || '0', 10),
+            balls: parseInt(b.Balls || '0', 10),
+            fours: parseInt(b.Fours || '0', 10),
+            sixes: parseInt(b.Sixes || '0', 10),
+            strikeRate: b.Strikerate || '0.0',
+            isStriker: idx === 0
+          }));
+        }
+      }
+
+      // Sync partnership from actual live partnership
+      if (activeInn.Partnership_Current?.Runs) {
+        partnership = {
+          runs: parseInt(activeInn.Partnership_Current.Runs || '0', 10),
+          balls: parseInt(activeInn.Partnership_Current.Balls || '0', 10),
+          runRate: activeInn.Partnership_Current.Runrate || '0.00'
+        };
       }
 
       // Get current bowler
       if (activeInn.Bowlers?.length) {
         const lastBowler = activeInn.Bowlers[activeInn.Bowlers.length - 1];
-        liveBowler = {
-          name: bowlingPlayers[lastBowler.Bowler]?.Name_Full || bowlingPlayers[lastBowler.Bowler]?.Name_Short || 'Bowler',
+        const bowlerName = bowlingPlayers[lastBowler.Bowler]?.Name_Full || bowlingPlayers[lastBowler.Bowler]?.Name_Short;
+        if (bowlerName) {
+          liveBowler = {
+            name: bowlerName,
           overs: lastBowler.Overs || '0.0',
           maidens: parseInt(lastBowler.Maidens || '0', 10),
           runs: parseInt(lastBowler.Runs || '0', 10),
           wickets: parseInt(lastBowler.Wickets || '0', 10),
           economy: lastBowler.Economyrate || '0.0'
-        };
+          };
+        }
       }
     }
   }
 
-  if (liveBatters.length === 0) {
-    liveBatters = [
-      { name: match.team1.name + ' Opener 1', runs: 45, balls: 32, fours: 5, sixes: 1, strikeRate: '140.6', isStriker: true },
-      { name: match.team1.name + ' Opener 2', runs: 28, balls: 24, fours: 3, sixes: 0, strikeRate: '116.7', isStriker: false }
-    ];
+  // If match has active live batters, try to get real recent balls from commentary
+  if (liveBatters.length > 0) {
+    try {
+      const comm = await getCommentary(matchId);
+      const balls = (comm || []).filter(c => c.type === 'ball' || c.over).slice(0, 6);
+      if (balls.length > 0) {
+        thisOverBalls = balls.map(b => b.isWicket ? 'W' : (b.isSix ? '6' : (b.isFour ? '4' : String(b.runs !== undefined ? b.runs : '0')))).reverse();
+      }
+    } catch (e) {
+      thisOverBalls = [];
+    }
   }
 
   return {
@@ -430,7 +495,7 @@ export async function getLiveMatchWidget(matchId) {
     partnership,
     lastWicket: '',
     equation: match.statusText,
-    crr: '4.2',
+    crr: '',
     rrr: ''
   };
 }
@@ -545,34 +610,14 @@ export async function getScorecard(matchId) {
     };
   }
 
-  // Fallback if detailed JSON not yet available
+  // Fallback if detailed JSON not yet available (e.g. upcoming or abandoned match)
   return {
     matchId,
     series: match.series,
     matchTitle: match.matchTitle,
     venue: match.venue,
     statusText: match.statusText,
-    innings: [
-      {
-        teamName: match.team1.name,
-        teamShort: match.team1.shortName,
-        teamLogo: match.team1.logo,
-        totalScore: match.team1.score,
-        overs: match.team1.overs,
-        runRate: '4.50',
-        batting: [
-          { name: match.team1.name + ' Top Batter', dismissal: 'not out', runs: 58, balls: 44, fours: 6, sixes: 2, strikeRate: '131.82' },
-          { name: match.team1.name + ' Middle Order', dismissal: 'c keeper b bowler', runs: 34, balls: 26, fours: 3, sixes: 1, strikeRate: '130.77' }
-        ],
-        extras: '10 (b 2, lb 4, w 3, nb 1)',
-        total: `${match.team1.score} (${match.team1.overs} ov)`,
-        didNotBat: [],
-        fallOfWickets: [],
-        bowling: [
-          { name: match.team2.name + ' Lead Bowler', overs: '4.0', maidens: 0, runs: 28, wickets: 2, economy: '7.00', dots: 11 }
-        ]
-      }
-    ]
+    innings: []
   };
 }
 
@@ -669,124 +714,134 @@ export async function getCommentary(matchId) {
   let accumulated = cricketCache.get(historyKey) || [];
 
   let liveItems = [];
-  let notesEvents = [];
-  let preMatchItems = [];
 
   if (code) {
     const scDetail = await getDetailedScorecardByCode(code);
     const raw = scDetail?.rawScorecard;
     const commLines = raw?.commentary || raw?.Comm_lines || [];
-    const md = raw?.Matchdetail || raw?.matchdetail || {};
 
-    // 1. Build Pre-Match info items (Pitch, Weather, Toss)
-    const venueName = md.Venue?.Name || matchItem?.matchdetail?.venue?.name || 'Stadium';
-    const weatherDesc = md.Weather || 'Sunny';
-    let tossStr = 'Toss in progress';
-    if (md.Tosswonby && md.Toss_elected_to) {
-      const winner = raw?.Teams?.[md.Tosswonby]?.Name_Full || 'Winning Team';
-      tossStr = `${winner} won the toss and elected to ${md.Toss_elected_to}`;
-    }
+    // Current active inning number (e.g. 1 or 2)
+    const currentInningNum = String(raw?.Innings?.length || '1');
 
-    preMatchItems = [
-      {
-        id: 'pre-match-pitch',
-        isPreMatch: true,
-        type: 'prematch',
-        badge: '🏟️',
-        overSummary: `Pitch Report: ${venueName} pitch looks hard and well-prepared with good bounce for pacers early on, offering helpful turn for spinners as the game progresses.`
-      },
-      {
-        id: 'pre-match-weather',
-        isPreMatch: true,
-        type: 'prematch',
-        badge: '☀️',
-        overSummary: `Weather Forecast: ${weatherDesc}, 24°C with pleasant breeze. Clear skies with no rain interruption expected.`
-      },
-      {
-        id: 'pre-match-toss',
-        isPreMatch: true,
-        type: 'prematch',
-        badge: '🪙',
-        overSummary: `Toss & Team Combination: ${tossStr}. Both playing XIs confirmed.`
-      }
-    ];
-
-    // 2. Parse live ball-by-ball entries
     if (Array.isArray(commLines) && commLines.length > 0) {
-      liveItems = commLines.map(c => {
-        const bowler = c.Bowler_Short_Name || c.Bowler_Name || (c.Bowler ? 'Bowler' : '');
-        const batsman = c.Batsman_Short_Name || c.Batsman_Name || (c.Batsman ? 'Batsman' : '');
-        const runs = parseInt(c.Runs || '0', 10);
-        const isWicket = Boolean(c.IsWicket || c.wicket || c.Dismissal);
-        const isBoundary = runs === 4;
-        const isSix = runs === 6;
+      liveItems = commLines
+        .map((c, idx) => {
+          const text = (c.Commentary || c.Default_Commentary || c.text || c.Comm || '').trim();
+          if (!text) return null;
 
-        let badge = String(runs);
-        if (isWicket) badge = 'W';
-        else if (isSix) badge = '6';
-        else if (isBoundary) badge = '4';
-        else if (runs === 0) badge = '0';
+          const hasOver = Boolean(c.Over && String(c.Over).trim() !== '');
+          const inning = String(c.inning || c.Inning || currentInningNum);
+          const uid = parseInt(c.UID || c.OID || '0', 10);
+          const timestamp = c.Timestamp || c.Created_Timestamp || '';
 
-        const text = c.Commentary || c.Default_Commentary || c.text || c.Comm || 'No run.';
+          if (hasOver) {
+            const bowler = c.Bowler_Short_Name || c.Bowler_Name || (c.Bowler ? 'Bowler' : '');
+            const batsman = c.Batsman_Short_Name || c.Batsman_Name || (c.Batsman ? 'Batsman' : '');
+            const runs = parseInt(c.Runs || '0', 10);
+            const isWicket = Boolean(c.IsWicket || c.wicket || c.Dismissal);
+            const isBoundary = runs === 4 || Boolean(c.Isboundary);
+            const isSix = runs === 6;
 
-        return {
-          id: `${c.Over || c.over}_${c.Ball || c.ball}`,
-          over: c.Over || c.over,
-          ball: parseInt(c.Ball || '1', 10),
-          runs,
-          badge,
-          isBoundary,
-          isSix,
-          isWicket,
-          bowler,
-          batsman,
-          text,
-          speed: c.Ball_Speed || '',
-          score: c.Score || ''
-        };
-      });
-    }
+            let badge = String(runs);
+            if (isWicket) badge = 'W';
+            else if (isSix) badge = '6';
+            else if (isBoundary) badge = '4';
+            else if (runs === 0) badge = '0';
 
-    // 3. Extract Milestone & Session Notes across innings
-    if (raw?.Notes) {
-      const allNotes = Object.values(raw.Notes).flat();
-      notesEvents = allNotes.map((note, nIdx) => ({
-        id: `note-${nIdx}`,
-        isOverEnd: true,
-        type: 'milestone',
-        overSummary: `📌 ${note}`
-      }));
+            return {
+              id: c.Id ? `ball_${c.Id}` : `inn${inning}_${c.Over}_${c.Ball || '1'}`,
+              uid,
+              type: 'ball',
+              inning,
+              over: String(c.Over),
+              ball: parseInt(c.Ball || '1', 10),
+              runs,
+              badge,
+              isBoundary,
+              isSix,
+              isWicket,
+              bowler,
+              batsman,
+              text,
+              speed: c.Ball_Speed || '',
+              score: c.Score || '',
+              timestamp
+            };
+          } else {
+            // Editorial / Presentation / Post-match / Official Note
+            return {
+              id: c.Id ? `editorial_${c.Id}` : `editorial_${uid || idx}_${text.slice(0, 15)}`,
+              uid,
+              type: 'editorial',
+              inning,
+              text,
+              timestamp
+            };
+          }
+        })
+        .filter(Boolean);
     }
   }
 
-  // Merge live items with accumulated history (deduplicated by over/ball)
+  // Merge live items with accumulated history (no fake fallbacks)
   const existingMap = new Map();
-  liveItems.forEach(item => existingMap.set(item.over, item));
+  const getItemKey = (item) => {
+    if (item.type === 'ball' && item.over) {
+      return `ball_${item.inning || '1'}_${item.over}`;
+    }
+    return `editorial_${item.id || item.uid || item.text.slice(0, 40)}`;
+  };
+
+  liveItems.forEach(item => {
+    existingMap.set(getItemKey(item), item);
+  });
   accumulated.forEach(item => {
-    if (!existingMap.has(item.over)) existingMap.set(item.over, item);
+    const key = getItemKey(item);
+    if (!existingMap.has(key)) {
+      existingMap.set(key, item);
+    }
   });
 
-  const mergedBalls = Array.from(existingMap.values());
-  // Sort descending by over (latest balls first)
-  mergedBalls.sort((a, b) => parseFloat(b.over || '0') - parseFloat(a.over || '0'));
+  const mergedEvents = Array.from(existingMap.values());
 
-  // Update rolling history in cache for 1 hour
-  cricketCache.set(historyKey, mergedBalls, 3600);
+  // Sort descending: Latest events / highest innings first
+  mergedEvents.sort((a, b) => {
+    const innA = parseInt(a.inning || '1', 10);
+    const innB = parseInt(b.inning || '1', 10);
+    if (innA !== innB) return innB - innA;
 
-  // Return combined timeline: Live balls -> Over Milestones -> Pre-match info
-  const combined = [...mergedBalls, ...notesEvents.slice(0, 10), ...preMatchItems];
+    // If both have UIDs, sort by UID descending
+    if (a.uid && b.uid && a.uid !== b.uid) {
+      return b.uid - a.uid;
+    }
 
-  if (combined.length > 0) {
-    return combined;
+    // If both are ball events, sort by over & ball
+    if (a.over && b.over) {
+      const [overA, ballA] = String(a.over).split('.').map(Number);
+      const [overB, ballB] = String(b.over).split('.').map(Number);
+      if (overA !== overB) return (overB || 0) - (overA || 0);
+      return (ballB || 0) - (ballA || 0);
+    }
+
+    // Editorial events without over: if post-match / presentation, should stay above balls
+    if (!a.over && b.over) return -1;
+    if (a.over && !b.over) return 1;
+
+    // Timestamp fallback
+    if (a.timestamp && b.timestamp) {
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    }
+
+    return 0;
+  });
+
+  // Update rolling history in cache for 2 hours
+  if (mergedEvents.length > 0) {
+    cricketCache.set(historyKey, mergedEvents, 7200);
   }
 
-  // Fallback commentary
-  return [
-    { over: '18.2', bowler: 'Starc', batsman: 'Markram', badge: '4', isBoundary: true, text: 'FOUR! Beautiful boundary driven through extra cover.' },
-    { over: '18.1', bowler: 'Starc', batsman: 'Markram', badge: '1', text: 'Good length delivery tucked into the mid-wicket gap for a single.' },
-    { isOverEnd: true, overSummary: 'End of Over 18: 9 runs from the over.' },
-    ...preMatchItems
-  ];
+  // Return purely real events - NEVER mock/hardcoded data
+  return mergedEvents;
 }
 
 // 5. Match Info & Real Squads with Coaches & Bench
@@ -805,7 +860,7 @@ export async function getMatchInfo(matchId) {
   let umpires = ['Chris Gaffaney (NZ)', 'Richard Kettleborough (ENG)'];
   let thirdUmpire = 'Richard Illingworth (ENG)';
   let matchReferee = ['Javagal Srinath (IND)'];
-  let tossText = match.toss || 'Toss in progress';
+  let tossText = match.toss || (match.status === 'UPCOMING' ? 'Toss yet to take place' : (match.status === 'LIVE' ? 'Toss in progress' : ''));
   let weather = 'Sunny, 24°C, 58% Humidity (Pleasant playing conditions)';
   let pitchReport = 'Firm pitch with good carry and bounce for seamers early on, offering helpful turn for spinners on later days.';
 
@@ -890,33 +945,13 @@ export async function getMatchInfo(matchId) {
     }
   }
 
-  // Fallback playing XI if empty
+  // If playing XI not announced yet, strictly keep empty
   if (team1XI.length === 0) {
-    team1XI = [
-      { name: t1Name + ' Opener 1', role: 'Batter' },
-      { name: t1Name + ' Opener 2', role: 'Batter' },
-      { name: t1Name + ' Captain (c)', role: 'Batter' },
-      { name: t1Name + ' Middle Order', role: 'Batter' },
-      { name: t1Name + ' Keeper (wk)', role: 'Wicket Keeper' },
-      { name: t1Name + ' All-Rounder', role: 'All-Rounder' },
-      { name: t1Name + ' Spinner', role: 'Bowler' },
-      { name: t1Name + ' Fast Bowler 1', role: 'Bowler' },
-      { name: t1Name + ' Fast Bowler 2', role: 'Bowler' }
-    ];
+    team1XI = [];
   }
 
   if (team2XI.length === 0) {
-    team2XI = [
-      { name: t2Name + ' Opener 1', role: 'Batter' },
-      { name: t2Name + ' Opener 2', role: 'Batter' },
-      { name: t2Name + ' Captain (c)', role: 'Batter' },
-      { name: t2Name + ' Middle Order', role: 'Batter' },
-      { name: t2Name + ' Keeper (wk)', role: 'Wicket Keeper' },
-      { name: t2Name + ' All-Rounder', role: 'All-Rounder' },
-      { name: t2Name + ' Spinner', role: 'Bowler' },
-      { name: t2Name + ' Fast Bowler 1', role: 'Bowler' },
-      { name: t2Name + ' Fast Bowler 2', role: 'Bowler' }
-    ];
+    team2XI = [];
   }
 
   const t1Staff = getTeamStaffAndBench(t1Name);

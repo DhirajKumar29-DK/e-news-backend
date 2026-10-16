@@ -1,4 +1,4 @@
-﻿import { prisma } from '../../config/db.js';
+import { prisma } from '../../config/db.js';
 
 function slugify(text) {
   if (!text) return 'news-' + Date.now();
@@ -14,7 +14,7 @@ function slugify(text) {
 }
 
 export const createArticle = async (data) => {
-  let baseSlug = slugify(data.title || data.slug || 'article');
+  let baseSlug = slugify(data.slug || data.title || 'article');
   if (!baseSlug) baseSlug = 'article-' + Date.now();
   
   // Ensure unique slug
@@ -147,6 +147,9 @@ export const getArticleByIdOrSlug = async (idOrSlug) => {
 
 export const updateArticle = async (id, data) => {
   const updateData = { ...data };
+  if (updateData.slug) {
+    updateData.slug = slugify(updateData.slug);
+  }
 
   if (Array.isArray(updateData.bulletPoints)) {
     updateData.bulletPoints = JSON.stringify(updateData.bulletPoints);
