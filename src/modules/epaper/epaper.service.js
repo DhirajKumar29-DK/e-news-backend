@@ -367,15 +367,22 @@ export const generateIssuePdfService = async (params) => {
     });
   }
 
-  const pdfResult = await generateIssuePdf({
-    editionSlug: edition.slug,
-    editionName: (typeof params === 'object' && params.editionName) || edition.name,
-    editionTitle: typeof params === 'object' ? params.editionTitle : null,
-    editionCity: typeof params === 'object' ? params.editionCity : null,
-    editionState: typeof params === 'object' ? params.editionState : null,
-    publishDate: dateString,
-    pages
-  });
+  const cleanEditionTitle = (typeof params === 'object' && params.editionTitle && !params.editionTitle.includes('?'))
+      ? params.editionTitle
+      : (edition.title || '\u0905\u092a\u0928\u093e \u092a\u091f\u0928\u093e');
+    const cleanEditionCity = (typeof params === 'object' && params.editionCity && !params.editionCity.includes('?'))
+      ? params.editionCity
+      : (edition.city || '\u092a\u091f\u0928\u093e');
+
+    const pdfResult = await generateIssuePdf({
+      editionSlug: edition.slug,
+      editionName: (typeof params === 'object' && params.editionName) || edition.name,
+      editionTitle: cleanEditionTitle,
+      editionCity: cleanEditionCity,
+      editionState: (typeof params === 'object' && params.editionState && !params.editionState.includes('?')) ? params.editionState : '\u092c\u093f\u0939\u093e\u0930',
+      publishDate: dateString,
+      pages
+    });
 
   // Save generated pageImage URLs on PaperPage records in database!
   if (Array.isArray(pdfResult.pageImages)) {
@@ -396,7 +403,7 @@ export const generateIssuePdfService = async (params) => {
   const updatedIssue = await prisma.paperIssue.update({
     where: { id: issue.id },
     data: {
-      broadsheetPdfUrl: pdfResult.publicUrl,
+      broadsheetPdfUrl: (pdfResult.pdfUrl || pdfResult.publicUrl || pdfResult.latestPdfUrl),
       status: 'PUBLISHED',
       totalPages: pages.length
     }
@@ -404,7 +411,7 @@ export const generateIssuePdfService = async (params) => {
 
   return {
     message: 'Broadsheet PDF & Page Canvas Images generated successfully',
-    pdfUrl: pdfResult.publicUrl,
+    pdfUrl: (pdfResult.pdfUrl || pdfResult.publicUrl || pdfResult.latestPdfUrl),
     pageImages: pdfResult.pageImages,
     issue: updatedIssue
   };

@@ -1,20 +1,21 @@
+import { PDFDocument } from 'pdf-lib';
 import puppeteer from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
 
 function formatHindiDateline(dateStr) {
-  if (!dateStr) return 'मंगलवार • 6 अक्टूबर 2026';
+  if (!dateStr) return '\u0936\u0941\u0915\u094d\u0930\u0935\u093e\u0930 \u2022 16 \u0905\u0915\u094d\u091f\u0942\u092c\u0930 2026';
   const d = new Date(dateStr);
   if (isNaN(d.getTime())) return dateStr;
-  const days = ['रविवार', 'सोमवार', 'मंगलवार', 'बुधवार', 'गुरुवार', 'शुक्रवार', 'शनिवार'];
-  const months = ['जनवरी', 'फ़रवरी', 'मार्च', 'अप्रैल', 'मई', 'जून', 'जुलाई', 'अगस्त', 'सितंबर', 'अक्टूबर', 'नवंबर', 'दिसंबर'];
+  const days = ["\u0930\u0935\u093f\u0935\u093e\u0930", "\u0938\u094b\u092e\u0935\u093e\u0930", "\u092e\u0902\u0917\u0932\u0935\u093e\u0930", "\u092c\u0941\u0927\u0935\u093e\u0930", "\u0917\u0941\u0930\u0941\u0935\u093e\u0930", "\u0936\u0941\u0915\u094d\u0930\u0935\u093e\u0930", "\u0936\u0928\u093f\u0935\u093e\u0930"];
+  const months = ["\u091c\u0928\u0935\u0930\u0940", "\u092b\u093c\u0930\u0935\u0930\u0940", "\u092e\u093e\u0930\u094d\u091a", "\u0905\u092a\u094d\u0930\u0948\u0932", "\u092e\u0908", "\u091c\u0942\u0928", "\u091c\u0941\u0932\u093e\u0908", "\u0905\u0917\u0938\u094d\u0924", "\u0938\u093f\u0924\u0902\u092c\u0930", "\u0905\u0915\u094d\u091f\u0942\u092c\u0930", "\u0928\u0935\u0902\u092c\u0930", "\u0926\u093f\u0938\u0902\u092c\u0930"];
 
   const dayName = days[d.getDay()];
   const dateNum = d.getDate();
   const monthName = months[d.getMonth()];
   const year = d.getFullYear();
 
-  return `${dayName} • ${dateNum} ${monthName} ${year}`;
+  return `${dayName} \u2022 ${dateNum} ${monthName} ${year}`;
 }
 
 function getSummaryLineHeight(fontSize) {
@@ -206,11 +207,13 @@ function computeSectionsFallback(s) {
 
   const tokens = sliceHtmlTokens(s.summary || '');
   const charsPerColLine = Math.max(8, Math.floor(singleColW / (summaryFont * 0.58)));
-  const linesUnderPhoto = Math.max(1, Math.floor(underPhotoH / lineH));
-  const linesFullCol = Math.max(1, Math.floor(fullStoryH / lineH));
+
+  const linesUnderPhoto = Math.max(1, Math.floor((underPhotoH - 6) / lineH));
+  const linesFullCol = Math.max(1, Math.floor((fullStoryH - 6) / lineH));
 
   const capLeft = leftCols * linesFullCol * charsPerColLine;
   const capPhoto = photoCols * linesUnderPhoto * charsPerColLine;
+  const capRight = rightCols * linesFullCol * charsPerColLine;
 
   let curChar = 0;
   let text1Tokens = [];
@@ -228,7 +231,7 @@ function computeSectionsFallback(s) {
     } else if (curChar < capLeft + capPhoto) {
       text2Tokens.push(tok);
       curChar += len;
-    } else {
+    } else if (rightCols > 0 && curChar < capLeft + capPhoto + capRight) {
       text3Tokens.push(tok);
       curChar += len;
     }
@@ -259,9 +262,12 @@ function computeSectionsFallback(s) {
 export function buildPageFragment(opts, pageObj, pIdx) {
   const { editionName, editionTitle, editionCity, editionState, publishDate } = opts;
   const formattedDate = formatHindiDateline(publishDate);
-  const cityStr = editionCity || 'पटना';
-  const mainTitle = editionTitle || (editionName ? (editionName.includes('पटना') ? editionName : `दैनिक ${editionName.replace(/edition/i, '').replace(/\(.*\)/g, '').trim()}`) : 'दैनिक पटना (मुख्य)');
-  const stateStr = editionState || 'बिहार मुख्य संस्करण • पटना (मुख्य)';
+  const cleanTitle = (opts.editionTitle && !opts.editionTitle.includes('?')) ? opts.editionTitle : null;
+  const mainTitle = cleanTitle || '\u0905\u092a\u0928\u093e \u092a\u091f\u0928\u093e';
+  const cleanCity = (opts.editionCity && !opts.editionCity.includes('?')) ? opts.editionCity : '\u092a\u091f\u0928\u093e';
+  const cleanState = (opts.editionState && !opts.editionState.includes('?')) ? opts.editionState : '\u092c\u093f\u0939\u093e\u0930';
+  const cityStr = cleanCity;
+  const stateStr = `${cleanState} \u2022 ${cleanCity}`;
   const pageNum = pageObj.pageNumber || (pIdx + 1);
 
   const rawSlots = pageObj.slots || [];
@@ -323,7 +329,7 @@ export function buildPageFragment(opts, pageObj, pIdx) {
 
     if (!hasImage) {
       bodyContentHtml = `
-        <div class="broadsheet-story-text" style="column-count: ${colsCount > 1 ? colsCount : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; width: 100%; flex: 1; min-height: 0; height: 100%; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: ${lineH}px; text-align: justify; text-justify: inter-word; word-break: break-word; white-space: pre-line; box-sizing: border-box; padding-right: 2px;">
+        <div class="broadsheet-story-text" style="column-count: ${colsCount > 1 ? colsCount : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; width: 100%; flex: 1; min-height: 0; height: auto; max-height: 100%; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: ${lineH}px; text-align: justify; text-justify: inter-word; word-break: break-word; white-space: pre-line; box-sizing: border-box; padding-right: 2px;">
           ${summary}
         </div>
       `;
@@ -354,14 +360,14 @@ export function buildPageFragment(opts, pageObj, pIdx) {
       `;
 
       const textDiv = `
-        <div class="broadsheet-story-text" style="column-count: ${colsCount > 1 ? colsCount : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; width: 100%; flex: 1; min-height: 0; height: 100%; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: ${lineH}px; text-align: justify; text-justify: inter-word; word-break: break-word; white-space: pre-line; box-sizing: border-box; padding-right: 2px; flex-shrink: 0;">
+        <div class="broadsheet-story-text" style="column-count: ${colsCount > 1 ? colsCount : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; width: 100%; flex: 1; min-height: 0; height: auto; max-height: 100%; overflow: hidden; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-size: ${summaryFontSize}px; color: ${summaryColor}; line-height: ${lineH}px; text-align: justify; text-justify: inter-word; word-break: break-word; white-space: pre-line; box-sizing: border-box; padding-right: 2px; flex-shrink: 0;">
           ${comp.text1 || summary}
         </div>
       `;
 
       bodyContentHtml = vertAlign === 'bottom'
         ? `<div style="display: flex; flex-direction: column; width: 100%; flex: 1; min-height: 0; height: 100%; overflow: hidden;">${textDiv}${photoDiv}</div>`
-        : `<div style="display: flex; flex-direction: column; width: 100%; height: ${fullStoryH}px; max-height: ${fullStoryH}px; overflow: hidden;">${photoDiv}${textDiv}</div>`;
+        : `<div style="display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden;">${photoDiv}${textDiv}</div>`;
     } else {
       // 100% Broadsheet Multi-Column Engine matching Canvas exactly
       const leftCols = comp.leftCols;
@@ -414,7 +420,7 @@ export function buildPageFragment(opts, pageObj, pIdx) {
           style="display: flex; gap: ${colGap}px; width: 100%; flex: 1; min-height: 0; height: 100%; overflow: hidden; align-items: stretch;"
         >
           ${leftCols > 0 ? `
-            <div id="slot-col-left-${sId}" class="broadsheet-story-text" style="width: ${leftSectionW}px; flex: 1; min-height: 0; height: 100%; column-count: ${leftCols > 1 ? leftCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} flex-shrink: 0;">${(comp.text1 || '').trim()}</div>
+            <div id="slot-col-left-${sId}" class="broadsheet-story-text" style="width: ${leftSectionW}px; height: ${fullStoryH}px; max-height: ${fullStoryH}px; column-count: ${leftCols > 1 ? leftCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} flex-shrink: 0;">${(comp.text1 || '').trim()}</div>
             ${showDivider ? '<div style="width: 1px; min-width: 1px; height: 100%; background-color: #cbd5e1; border-left: 1px solid #cbd5e1; flex-shrink: 0;"></div>' : ''}
           ` : ''}
 
@@ -437,7 +443,7 @@ export function buildPageFragment(opts, pageObj, pIdx) {
 
           ${rightCols > 0 ? `
             ${showDivider ? '<div style="width: 1px; min-width: 1px; height: 100%; background-color: #cbd5e1; border-left: 1px solid #cbd5e1; flex-shrink: 0;"></div>' : ''}
-            <div id="slot-col-right-${sId}" class="broadsheet-story-text" style="width: ${rightSectionW}px; flex: 1; min-height: 0; height: 100%; column-count: ${rightCols > 1 ? rightCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} flex-shrink: 0;">${(comp.text3 || '').trim()}</div>
+            <div id="slot-col-right-${sId}" class="broadsheet-story-text" style="width: ${rightSectionW}px; height: ${fullStoryH}px; max-height: ${fullStoryH}px; column-count: ${rightCols > 1 ? rightCols : 'auto'}; column-gap: ${colGap}px; column-rule: ${showDivider ? '1px solid #cbd5e1' : 'none'}; column-fill: auto; overflow: hidden; ${colStyleCommon} flex-shrink: 0;">${(comp.text3 || '').trim()}</div>
           ` : ''}
 
           <script type="application/json" id="slot-tokens-data-${sId}">${tokensJson}</script>
@@ -448,7 +454,7 @@ export function buildPageFragment(opts, pageObj, pIdx) {
     return `
       <div
         id="slot-container-${sId}"
-        style="position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${safeH}px; border: none; padding: 8px 8px 4px 8px; box-sizing: border-box; background: transparent; overflow: hidden; display: flex; flex-direction: column;"
+        style="position: absolute; left: ${x}px; top: ${y}px; width: ${w}px; height: ${safeH}px; border: none; padding: 12px; box-sizing: border-box; background: transparent; overflow: hidden; display: flex; flex-direction: column;"
       >
         <div id="slot-header-${sId}" style="margin-bottom: 2px; flex-shrink: 0;">
           ${tagHtml}
@@ -466,19 +472,19 @@ export function buildPageFragment(opts, pageObj, pIdx) {
     <div class="broadsheet-page">
       <!-- TOP DATE LINE BAR -->
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #0f172a; padding-bottom: 2px; margin-bottom: 2px; font-size: 12px; font-weight: 700; color: #1e293b; font-family: 'Mukta', 'Inter', sans-serif; line-height: 1.15;">
-        <div>${cityStr} • ${formattedDate}</div>
-        <div style="font-style: italic; color: #475569; font-family: 'Noto Serif Devanagari', 'Merriweather', serif;">डिजिटल संस्करण • epaper</div>
+        <div>${cleanCity} &bull; ${formattedDate}</div>
+        <div style="font-style: italic; color: #475569; font-family: 'Noto Serif Devanagari', 'Merriweather', serif;">\u0921\u093f\u091c\u093f\u091f\u0932 \u0938\u0902\u0938\u094d\u0915\u0930\u0923 &bull; epaper</div>
         <div>पेज 0${pageNum}</div>
       </div>
 
       <!-- BIG RED BROADSHEET MASTHEAD -->
-      <header style="text-align: center; border-bottom: 4px double #0f172a; padding-bottom: 4px; margin-bottom: 0px;">
-        <h1 style="font-size: 68px; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; color: #dc2626; margin: 0; line-height: 0.95; letter-spacing: -1px;">
+      <header style="text-align: center; border-bottom: 3.5px double #0f172a; padding-bottom: 4px; margin-bottom: 2px;">
+        <h1 style="font-size: 60px; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; color: #dc2626; margin: 0; line-height: 1.15; padding: 2px 0; letter-spacing: -1px;">
           ${mainTitle}
         </h1>
         <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 4px;">
           <span style="display: inline-block; background-color: #f59e0b; color: #020617; font-size: 10px; font-weight: 900; padding: 1px 6px; border-radius: 3px; font-family: 'Inter', sans-serif; letter-spacing: 0.5px;">FREE-FORM CANVAS</span>
-          <span style="font-size: 11px; font-weight: 700; color: #1e293b; font-family: 'Mukta', sans-serif;">• ${stateStr}</span>
+          <span style="font-size: 11px; font-weight: 700; color: #1e293b; font-family: 'Mukta', sans-serif;">• ${cleanState} &bull; ${cleanCity}</span>
         </div>
       </header>
 
@@ -487,7 +493,7 @@ export function buildPageFragment(opts, pageObj, pIdx) {
 
       <!-- FOOTER -->
       <footer style="position: absolute; bottom: 12px; left: 40px; right: 40px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #cbd5e1; padding-top: 4px; font-size: 10px; font-family: 'Mukta', 'Inter', sans-serif; color: #64748b;">
-        <span>दैनिक समाचार पत्र • डिजिटल ई-संस्करण • ${stateStr}</span>
+        <span>दैनिक समाचार पत्र • डिजिटल ई-संस्करण • ${cleanState} &bull; ${cleanCity}</span>
         <span>पेज 0${pageNum}</span>
       </footer>
     </div>
@@ -595,52 +601,118 @@ export async function generateIssuePdf(opts) {
     const editionSlug = opts.editionSlug || 'patna-main';
     const publishDate = opts.publishDate || 'today';
     const pages = opts.pages || [];
+    const totalPages = Math.max(1, pages.length);
+
+    const mergedPdf = await PDFDocument.create();
     const pageImageUrls = [];
+    const appBaseUrl = process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
 
+    let usedLiveClone = false;
+
+    try {
+      for (let pIdx = 0; pIdx < totalPages; pIdx++) {
+        const pageNum = pIdx + 1;
+        const targetUrl = `${appBaseUrl}/epaper?edition=${encodeURIComponent(editionSlug)}&date=${encodeURIComponent(publishDate)}&page=${pageNum}`;
+
+        const page = await browser.newPage();
+        await page.setViewport({ width: 1440, height: 2200, deviceScaleFactor: 2 });
+        await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 35000 });
+        await page.evaluateHandle('document.fonts.ready');
+        await new Promise((r) => setTimeout(r, 1200));
+
+        const hasCanvas = await page.evaluate(() => {
+          const header = document.querySelector('header');
+          if (header) header.style.display = 'none';
+          const bottomBar = document.querySelector('.fixed.bottom-6');
+          if (bottomBar) bottomBar.style.display = 'none';
+
+          const canvas = document.querySelector('.bg-white.text-slate-950.border.border-slate-300');
+          if (!canvas) return false;
+
+          canvas.style.transform = 'none';
+          canvas.style.margin = '0';
+          canvas.style.border = 'none';
+          canvas.style.boxShadow = 'none';
+
+          document.body.innerHTML = '';
+          document.body.style.margin = '0';
+          document.body.style.padding = '0';
+          document.body.style.background = '#ffffff';
+          document.body.appendChild(canvas);
+          return true;
+        });
+
+        if (!hasCanvas) {
+          console.warn(`Canvas not found on page ${pageNum}`);
+          await page.close();
+          continue;
+        }
+
+        usedLiveClone = true;
+
+        const pageImgFilename = `${editionSlug}-${publishDate}-page-${pageNum}.webp`;
+        const pageImgPath = path.join(pageImgDir, pageImgFilename);
+        await page.screenshot({
+          path: pageImgPath,
+          type: 'webp',
+          quality: 98,
+          clip: { x: 0, y: 0, width: 1344, height: 2112 }
+        });
+
+        pageImageUrls.push({
+          pageNumber: pageNum,
+          pageImage: `/uploads/epaper/pages/${pageImgFilename}`
+        });
+
+        const singlePdfBuffer = await page.pdf({
+          width: '1344px',
+          height: '2112px',
+          printBackground: true,
+          margin: { top: 0, right: 0, bottom: 0, left: 0 }
+        });
+
+        await page.close();
+
+        const loadedPdf = await PDFDocument.load(singlePdfBuffer);
+        const copiedPages = await mergedPdf.copyPages(loadedPdf, loadedPdf.getPageIndices());
+        copiedPages.forEach((cp) => mergedPdf.addPage(cp));
+      }
+    } catch (liveErr) {
+      console.warn('Live clone generation error, falling back to document template:', liveErr.message);
+    }
+
+    if (usedLiveClone && mergedPdf.getPageCount() > 0) {
+      const mergedPdfBytes = await mergedPdf.save();
+      const pdfFilename = `epaper-${editionSlug}-${publishDate}-${Date.now()}.pdf`;
+      const pdfPath = path.join(pdfDir, pdfFilename);
+      fs.writeFileSync(pdfPath, mergedPdfBytes);
+
+      const latestPdfFilename = `epaper-${editionSlug}-${publishDate}.pdf`;
+      const latestPdfPath = path.join(pdfDir, latestPdfFilename);
+      fs.copyFileSync(pdfPath, latestPdfPath);
+
+      return {
+        pdfUrl: `/uploads/pdfs/${pdfFilename}`,
+        publicUrl: `/uploads/pdfs/${pdfFilename}`,
+        latestPdfUrl: `/uploads/pdfs/${latestPdfFilename}`,
+        pageImages: pageImageUrls
+      };
+    }
+
+    // Fallback: build template pages
     const allPagesFragments = [];
-
     for (let pIdx = 0; pIdx < pages.length; pIdx++) {
       const pageObj = pages[pIdx];
       const pageNum = pageObj.pageNumber || (pIdx + 1);
-
       const { pageHtml } = buildPageFragment(opts, pageObj, pIdx);
       allPagesFragments.push(pageHtml);
-
-      // Render individual single page for high-res screenshot (WebP)
-      const singleDocHtml = wrapFullDocument(pageHtml, `Page ${pageNum} - ${editionSlug}`);
-      const singlePage = await browser.newPage();
-      await singlePage.setViewport({ width: 1344, height: 2112, deviceScaleFactor: 2 });
-      await singlePage.setContent(singleDocHtml, { waitUntil: 'networkidle0' });
-
-      // Ensure all web fonts are loaded
-      await singlePage.evaluateHandle('document.fonts.ready');
-      // Layout runs purely on exact pre-computed canvas sections
-
-      const pageImgFilename = `${editionSlug}-${publishDate}-page-${pageNum}.webp`;
-      const pageImgPath = path.join(pageImgDir, pageImgFilename);
-
-      await singlePage.screenshot({
-        path: pageImgPath,
-        type: 'webp',
-        quality: 98,
-        clip: { x: 0, y: 0, width: 1344, height: 2112 }
-      });
-
-      await singlePage.close();
-
-      pageImageUrls.push({
-        pageNumber: pageNum,
-        pageImage: `/uploads/epaper/pages/${pageImgFilename}`
-      });
     }
 
-    // Compile full multi-page PDF
     const fullDocHtml = wrapFullDocument(allPagesFragments.join('\n'), `${editionSlug} - ${publishDate}`);
     const fullPdfPage = await browser.newPage();
     await fullPdfPage.setViewport({ width: 1344, height: 2112, deviceScaleFactor: 2 });
     await fullPdfPage.setContent(fullDocHtml, { waitUntil: 'networkidle0' });
     await fullPdfPage.evaluateHandle('document.fonts.ready');
-    // Layout runs purely on exact pre-computed canvas sections
 
     const pdfFilename = `epaper-${editionSlug}-${publishDate}-${Date.now()}.pdf`;
     const pdfPath = path.join(pdfDir, pdfFilename);
@@ -653,7 +725,6 @@ export async function generateIssuePdf(opts) {
       margin: { top: 0, right: 0, bottom: 0, left: 0 }
     });
 
-    // Also maintain a fixed latest copy for reliable downloading
     const latestPdfFilename = `epaper-${editionSlug}-${publishDate}.pdf`;
     const latestPdfPath = path.join(pdfDir, latestPdfFilename);
     fs.copyFileSync(pdfPath, latestPdfPath);
@@ -662,6 +733,7 @@ export async function generateIssuePdf(opts) {
 
     return {
       pdfUrl: `/uploads/pdfs/${pdfFilename}`,
+      publicUrl: `/uploads/pdfs/${pdfFilename}`,
       latestPdfUrl: `/uploads/pdfs/${latestPdfFilename}`,
       pageImages: pageImageUrls
     };
