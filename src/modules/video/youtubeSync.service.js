@@ -188,7 +188,7 @@ async function fetchVideosFromAPI(channelId, apiKey) {
       durationSeconds: dur.seconds
     };
   });
-
+ 
   return { channelTitle, videos };
 }
 
