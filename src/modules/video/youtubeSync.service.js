@@ -197,7 +197,18 @@ async function fetchVideosFromAPI(channelId, apiKey) {
  */
 export async function syncYouTubeVideos(customChannelInput = null, category = 'news') {
   const envChannel = process.env.YOUTUBE_CHANNEL_ID;
-  const channelInput = customChannelInput || envChannel || 'UCt4t-jeY85JegMlZ-E5UWtA'; // Default AajTak if nothing specified
+  const channelInput = customChannelInput || envChannel;
+
+  if (!channelInput) {
+    // If no channel is configured, remain idle and do not sync random videos
+    return {
+      success: true,
+      message: 'No YouTube channel configured yet. Auto-sync is idle.',
+      newVideosAdded: 0,
+      alreadyExisted: 0,
+      totalFetched: 0
+    };
+  }
 
   lastSyncState.status = 'SYNCING';
 
@@ -318,6 +329,6 @@ export async function syncYouTubeVideos(customChannelInput = null, category = 'n
 export function getSyncStatus() {
   return {
     ...lastSyncState,
-    configuredChannel: process.env.YOUTUBE_CHANNEL_ID || 'UCt4t-jeY85JegMlZ-E5UWtA'
+    configuredChannel: process.env.YOUTUBE_CHANNEL_ID || null
   };
 }
