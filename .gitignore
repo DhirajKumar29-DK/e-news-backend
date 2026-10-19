@@ -26,3 +26,7 @@ Thumbs.db
 public/uploads/*
 !public/uploads/.gitkeep
 
+
+# Puppeteer Cache
+.cache/
+

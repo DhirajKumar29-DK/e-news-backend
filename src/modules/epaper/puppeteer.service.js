@@ -3,6 +3,16 @@ import puppeteer from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
 
+let vartiqLogoBase64 = '';
+try {
+  const logoPath = path.join(process.cwd(), 'public', 'vartiq-logo.png');
+  if (fs.existsSync(logoPath)) {
+    vartiqLogoBase64 = `data:image/png;base64,${fs.readFileSync(logoPath).toString('base64')}`;
+  }
+} catch (e) {
+  console.warn('Could not load vartiq-logo.png as base64:', e.message);
+}
+
 function formatHindiDateline(dateStr) {
   if (!dateStr) return '\u0936\u0941\u0915\u094d\u0930\u0935\u093e\u0930 \u2022 16 \u0905\u0915\u094d\u091f\u0942\u092c\u0930 2026';
   const d = new Date(dateStr);
@@ -477,16 +487,41 @@ export function buildPageFragment(opts, pageObj, pIdx) {
         <div>पेज 0${pageNum}</div>
       </div>
 
-      <!-- BIG RED BROADSHEET MASTHEAD -->
-      <header style="text-align: center; border-bottom: 3.5px double #0f172a; padding-bottom: 4px; margin-bottom: 2px;">
-        <h1 style="font-size: 60px; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; color: #dc2626; margin: 0; line-height: 1.15; padding: 2px 0; letter-spacing: -1px;">
-          ${mainTitle}
-        </h1>
-        <div style="display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 4px;">
-          <span style="display: inline-block; background-color: #f59e0b; color: #020617; font-size: 10px; font-weight: 900; padding: 1px 6px; border-radius: 3px; font-family: 'Inter', sans-serif; letter-spacing: 0.5px;">FREE-FORM CANVAS</span>
-          <span style="font-size: 11px; font-weight: 700; color: #1e293b; font-family: 'Mukta', sans-serif;">• ${cleanState} &bull; ${cleanCity}</span>
-        </div>
-      </header>
+      <!-- BIG RED BROADSHEET MASTHEAD (OPTION 1 STYLE: BALANCED 3-PANEL WITH DYNAMIC EDITION RIBBON) -->
+        <header style="border-bottom: 3px double #0f172a; padding-bottom: 2px; margin-bottom: 2px; box-sizing: border-box;">
+          <div style="display: flex; justify-content: space-between; align-items: center; height: 82px; box-sizing: border-box;">
+            
+            <!-- LEFT: VARTIQ LOGO & EDITION METADATA -->
+            <div style="width: 210px; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
+              ${vartiqLogoBase64 ? `<img src="${vartiqLogoBase64}" alt="Vartiq" style="height: 40px; max-width: 175px; object-fit: contain;" />` : `<div style="font-size: 26px; font-weight: 900; color: #dc2626; font-family: 'Noto Serif Devanagari', serif;">वार्तिक</div>`}
+              <div style="font-size: 9.5px; font-weight: 700; color: #475569; font-family: 'Inter', sans-serif; margin-top: 2px; line-height: 1.2;">
+                <span>वर्ष 01 &bull; अंक 145</span><br />
+                <span>डिजिटल संस्करण &bull; मूल्य: नि:शुल्क</span>
+              </div>
+            </div>
+
+            <!-- CENTER: GRAND BROADSHEET TITLE & DYNAMIC EDITION RIBBON -->
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+              <h1 style="font-size: 52px; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; color: #dc2626; margin: 0; line-height: 1.0; padding: 0; letter-spacing: -1px;">
+                वार्तिक
+              </h1>
+              <div style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 2px;">
+                <span style="width: 28px; height: 1.5px; background-color: #0f172a; display: inline-block;"></span>
+                <span style="border: 1px solid #0f172a; background-color: #ffffff; color: #020617; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; font-size: 13.5px; padding: 1px 12px; border-radius: 2px; letter-spacing: 0.5px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); line-height: 1.2;">
+                  ${cleanTitle || `अपना ${cleanCity}`}
+                </span>
+                <span style="width: 28px; height: 1.5px; background-color: #0f172a; display: inline-block;"></span>
+              </div>
+              <div style="font-size: 9.5px; font-weight: 700; color: #475569; font-style: italic; font-family: 'Mukta', sans-serif; margin-top: 2px; letter-spacing: 0.5px; line-height: 1.1;">
+                &ldquo;खबर समझो, दुनिया समझो।&rdquo;
+              </div>
+            </div>
+
+            <!-- RIGHT: CLEAN EMPTY SPACE FOR PERFECT OPTICAL CENTERING -->
+            <div style="width: 210px; flex-shrink: 0;"></div>
+
+          </div>
+        </header>
 
       <!-- SLOTS DIRECT ON BROADSHEET CANVAS (EXACT 1:1 REPLICA OF ADMIN CANVAS & WEBSITE MODAL) -->
       ${slotsHtml}
@@ -607,105 +642,41 @@ export async function generateIssuePdf(opts) {
     const pageImageUrls = [];
     const appBaseUrl = process.env.APP_BASE_URL || process.env.FRONTEND_URL || 'http://localhost:3000';
 
-    let usedLiveClone = false;
+    // 100% Reliable, Standalone Broadsheet Generator:
+    // Pure vector rendering from database slots. Zero dependency on live website URL.
+    const allPagesFragments = [];
+    const pagesToRender = (pages && pages.length > 0) ? pages : [{ pageNumber: 1, slots: [] }];
 
-    try {
-      for (let pIdx = 0; pIdx < totalPages; pIdx++) {
-        const pageNum = pIdx + 1;
-        const targetUrl = `${appBaseUrl}/epaper?edition=${encodeURIComponent(editionSlug)}&date=${encodeURIComponent(publishDate)}&page=${pageNum}`;
+    for (let pIdx = 0; pIdx < pagesToRender.length; pIdx++) {
+      const pageObj = pagesToRender[pIdx];
+      const pageNum = pageObj.pageNumber || (pIdx + 1);
+      const { pageHtml } = buildPageFragment(opts, pageObj, pIdx);
+      allPagesFragments.push(pageHtml);
 
-        const page = await browser.newPage();
-        await page.setViewport({ width: 1440, height: 2200, deviceScaleFactor: 2 });
-        await page.goto(targetUrl, { waitUntil: 'networkidle0', timeout: 35000 });
-        await page.evaluateHandle('document.fonts.ready');
-        await new Promise((r) => setTimeout(r, 1200));
-
-        const hasCanvas = await page.evaluate(() => {
-          const header = document.querySelector('header');
-          if (header) header.style.display = 'none';
-          const bottomBar = document.querySelector('.fixed.bottom-6');
-          if (bottomBar) bottomBar.style.display = 'none';
-
-          const canvas = document.querySelector('.bg-white.text-slate-950.border.border-slate-300');
-          if (!canvas) return false;
-
-          canvas.style.transform = 'none';
-          canvas.style.margin = '0';
-          canvas.style.border = 'none';
-          canvas.style.boxShadow = 'none';
-
-          document.body.innerHTML = '';
-          document.body.style.margin = '0';
-          document.body.style.padding = '0';
-          document.body.style.background = '#ffffff';
-          document.body.appendChild(canvas);
-          return true;
-        });
-
-        if (!hasCanvas) {
-          console.warn(`Canvas not found on page ${pageNum}`);
-          await page.close();
-          continue;
-        }
-
-        usedLiveClone = true;
+      // Generate page thumbnail webp
+      try {
+        const singlePageHtml = wrapFullDocument(pageHtml, `${editionSlug} - Page ${pageNum}`);
+        const thumbPage = await browser.newPage();
+        await thumbPage.setViewport({ width: 1344, height: 2112, deviceScaleFactor: 1 });
+        await thumbPage.setContent(singlePageHtml, { waitUntil: 'domcontentloaded' });
+        await thumbPage.evaluateHandle('document.fonts.ready');
 
         const pageImgFilename = `${editionSlug}-${publishDate}-page-${pageNum}.webp`;
         const pageImgPath = path.join(pageImgDir, pageImgFilename);
-        await page.screenshot({
+        await thumbPage.screenshot({
           path: pageImgPath,
           type: 'webp',
-          quality: 98,
-          clip: { x: 0, y: 0, width: 1344, height: 2112 }
+          quality: 90
         });
+        await thumbPage.close();
 
         pageImageUrls.push({
           pageNumber: pageNum,
           pageImage: `/uploads/epaper/pages/${pageImgFilename}`
         });
-
-        const singlePdfBuffer = await page.pdf({
-          width: '1344px',
-          height: '2112px',
-          printBackground: true,
-          margin: { top: 0, right: 0, bottom: 0, left: 0 }
-        });
-
-        await page.close();
-
-        const loadedPdf = await PDFDocument.load(singlePdfBuffer);
-        const copiedPages = await mergedPdf.copyPages(loadedPdf, loadedPdf.getPageIndices());
-        copiedPages.forEach((cp) => mergedPdf.addPage(cp));
+      } catch (thumbErr) {
+        console.warn(`Thumb generation for page ${pageNum} skipped:`, thumbErr.message);
       }
-    } catch (liveErr) {
-      console.warn('Live clone generation error, falling back to document template:', liveErr.message);
-    }
-
-    if (usedLiveClone && mergedPdf.getPageCount() > 0) {
-      const mergedPdfBytes = await mergedPdf.save();
-      const pdfFilename = `epaper-${editionSlug}-${publishDate}-${Date.now()}.pdf`;
-      const pdfPath = path.join(pdfDir, pdfFilename);
-      fs.writeFileSync(pdfPath, mergedPdfBytes);
-
-      const latestPdfFilename = `epaper-${editionSlug}-${publishDate}.pdf`;
-      const latestPdfPath = path.join(pdfDir, latestPdfFilename);
-      fs.copyFileSync(pdfPath, latestPdfPath);
-
-      return {
-        pdfUrl: `/uploads/pdfs/${pdfFilename}`,
-        publicUrl: `/uploads/pdfs/${pdfFilename}`,
-        latestPdfUrl: `/uploads/pdfs/${latestPdfFilename}`,
-        pageImages: pageImageUrls
-      };
-    }
-
-    // Fallback: build template pages
-    const allPagesFragments = [];
-    for (let pIdx = 0; pIdx < pages.length; pIdx++) {
-      const pageObj = pages[pIdx];
-      const pageNum = pageObj.pageNumber || (pIdx + 1);
-      const { pageHtml } = buildPageFragment(opts, pageObj, pIdx);
-      allPagesFragments.push(pageHtml);
     }
 
     const fullDocHtml = wrapFullDocument(allPagesFragments.join('\n'), `${editionSlug} - ${publishDate}`);
