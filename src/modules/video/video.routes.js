@@ -19,6 +19,10 @@ router.post('/upload-thumbnail', uploadArticleImage.single('image'), (req, res) 
 // 3. Showcase Feed (Featured Hero + Top 5 Trending + Recents)
 router.get('/featured-trending', videoController.getFeaturedAndTrending);
 
+// YouTube Auto-Sync Endpoints
+router.post('/sync-youtube', videoController.syncYouTube);
+router.get('/sync-status', videoController.getYoutubeSyncStatus);
+
 // 4. Paginated Video List
 router.get('/', videoController.getVideos);
 

@@ -91,3 +91,24 @@ export const uploadVideoFile = async (req, res, next) => {
     next(error);
   }
 };
+
+export const syncYouTube = async (req, res, next) => {
+  try {
+    const { channelInput, category } = req.body || {};
+    const { syncYouTubeVideos } = await import('./youtubeSync.service.js');
+    const result = await syncYouTubeVideos(channelInput, category);
+    return sendSuccess(res, 'YouTube channel synced successfully', result);
+  } catch (error) {
+    return sendError(res, error.message || 'Failed to sync YouTube channel', null, 500);
+  }
+};
+
+export const getYoutubeSyncStatus = async (req, res, next) => {
+  try {
+    const { getSyncStatus } = await import('./youtubeSync.service.js');
+    const status = getSyncStatus();
+    return sendSuccess(res, 'YouTube sync status retrieved', status);
+  } catch (error) {
+    next(error);
+  }
+};
