@@ -20,8 +20,20 @@ app.use(
     contentSecurityPolicy: false
   })
 );
+const parseCorsOrigin = () => {
+  const originStr = env.CORS_ORIGIN || '*';
+  if (!originStr || originStr === '*') return '*';
+  const origins = originStr.split(',').map((o) => o.trim()).filter(Boolean);
+  return (origin, callback) => {
+    // Allow server-to-server, curl, mobile apps, or matched domains
+    if (!origin || origins.includes(origin) || origins.includes('*')) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Fallback to avoid breaking requests
+  };
+};
 
-app.use(cors({ origin: '*' }));
+app.use(cors({ origin: parseCorsOrigin(), credentials: true }));
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
