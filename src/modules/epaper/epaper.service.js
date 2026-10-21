@@ -80,6 +80,45 @@ const getOrCreatePaperIssue = async (editionSlug, dateString) => {
 /**
  * Public Reader API: Get Single Broadsheet Page (Zero Lag)
  */
+/**
+ * Helper: Enrich PaperPage with Dynamic Header Configuration (GRAND / FOLIO / NONE & Section Title)
+ */
+export const enrichPageHeader = (page) => {
+  if (!page) return page;
+  const pageNum = Number(page.pageNumber || 1);
+  let headerType = pageNum === 1 ? 'GRAND' : 'FOLIO';
+  let headerHeight = pageNum === 1 ? 120 : 42;
+
+  if (page.templateKey) {
+    const tKey = String(page.templateKey).toLowerCase();
+    if (tKey.includes('none')) {
+      headerType = 'NONE';
+      headerHeight = 0;
+    } else if (tKey.includes('grand')) {
+      headerType = 'GRAND';
+      headerHeight = 120;
+    } else if (tKey.includes('folio')) {
+      headerType = 'FOLIO';
+      headerHeight = 42;
+    }
+    const match = page.templateKey.match(/:\s*(\d+)/);
+    if (match) {
+      headerHeight = parseInt(match[1], 10);
+    }
+  }
+
+  const sectionTitle = (page.title && page.title !== 'Lead Cover' && page.title !== `Page ${pageNum}` && page.title !== 'City News')
+    ? page.title
+    : (pageNum === 1 ? 'मुख्य पृष्ठ' : 'सिटी संस्करण');
+
+  return {
+    ...page,
+    headerType,
+    headerHeight,
+    sectionTitle
+  };
+};
+
 export const getReaderPage = async (editionSlug, dateString, pageNo = 1) => {
   const { issue, edition } = await getOrCreatePaperIssue(editionSlug, dateString);
 
@@ -111,7 +150,7 @@ export const getReaderPage = async (editionSlug, dateString, pageNo = 1) => {
       broadsheetPdfUrl: issue.broadsheetPdfUrl,
       totalPages: issue.totalPages
     },
-    page: page || null
+    page: enrichPageHeader(page) || null
   };
 };
 
@@ -141,7 +180,7 @@ export const getIssueDetails = async (editionSlug, dateString) => {
       broadsheetPdfUrl: issue.broadsheetPdfUrl,
       totalPages: pages.length
     },
-    pages
+    pages: pages.map(enrichPageHeader)
   };
 };
 
@@ -279,7 +318,7 @@ export const publishIssue = async (editionSlug, dateString, status = 'PUBLISHED'
       editionSlug: edition.slug,
       editionName: edition.name,
       publishDate: dateString,
-      pages: pages || undefined
+      pages: pages ? pages.map(enrichPageHeader) : undefined
     });
   } catch (pdfErr) {
     console.warn('⚠️ PDF Generation background note:', pdfErr.message);
@@ -306,7 +345,7 @@ export const publishPaper = publishIssue;
 /**
  * Admin API: Add New Page
  */
-export const addPage = async (editionSlug, dateString, pageNumber, title, templateKey) => {
+export const addPage = async (editionSlug, dateString, pageNumber, title, templateKey, headerType, headerHeight, sectionTitle) => {
   const { issue } = await getOrCreatePaperIssue(editionSlug, dateString);
 
   let page = await prisma.paperPage.findFirst({
@@ -436,19 +475,29 @@ export const savePagesBulk = async (editionSlug, dateString, pages) => {
       }
     });
 
+    const resolvedTemplateKey = pg.headerType
+      ? `${String(pg.headerType).toLowerCase()}${pg.headerHeight ? `:${pg.headerHeight}` : ''}`
+      : (pg.templateKey || (pageNum === 1 ? 'grand' : 'folio'));
+
+    const resolvedTitle = pg.sectionTitle || pg.title || (pageNum === 1 ? 'मुख्य पृष्ठ' : 'सिटी संस्करण');
+
     if (!page) {
       page = await prisma.paperPage.create({
         data: {
           paperIssueId: issue.id,
           pageNumber: pageNum,
-          title: pg.title || `Page ${pageNum}`,
-          templateKey: pg.templateKey || 'layout_1'
+          title: resolvedTitle,
+          templateKey: resolvedTemplateKey
         }
       });
-    } else if (page.deletedAt) {
+    } else {
       page = await prisma.paperPage.update({
         where: { id: page.id },
-        data: { deletedAt: null, title: pg.title || `Page ${pageNum}` }
+        data: {
+          deletedAt: null,
+          title: resolvedTitle,
+          templateKey: resolvedTemplateKey
+        }
       });
     }
 

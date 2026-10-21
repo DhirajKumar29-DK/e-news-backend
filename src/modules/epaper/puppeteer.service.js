@@ -478,50 +478,95 @@ export function buildPageFragment(opts, pageObj, pIdx) {
     `;
   }).join('');
 
-  const pageHtml = `
-    <div class="broadsheet-page">
-      <!-- TOP DATE LINE BAR -->
+  // Dynamic Header Type Resolution (GRAND for Page 1, FOLIO for Page 2+, or NONE for ads/special spreads)
+  let headerType = pageObj.headerType;
+  if (!headerType && pageObj.templateKey) {
+    const tKey = String(pageObj.templateKey).toLowerCase();
+    if (tKey.includes('none')) headerType = 'NONE';
+    else if (tKey.includes('grand')) headerType = 'GRAND';
+    else if (tKey.includes('folio')) headerType = 'FOLIO';
+  }
+  if (!headerType) {
+    headerType = Number(pageNum) === 1 ? 'GRAND' : 'FOLIO';
+  }
+
+  // Dynamic Section Title Resolution (e.g. "गया", "मुजफ्फरपुर", "खेल", "संपादकीय", "कारोबार")
+  let sectionTitle = pageObj.sectionTitle || pageObj.title;
+  if (!sectionTitle || sectionTitle === 'Lead Cover' || sectionTitle === `Page ${pageNum}` || sectionTitle === 'City News') {
+    sectionTitle = (Number(pageNum) === 1 ? (cleanTitle || `अपना ${cleanCity}`) : cleanCity);
+  }
+
+  let headerHtml = '';
+  if (headerType === 'NONE') {
+    headerHtml = '<div style="height: 6px; width: 100%;"></div>';
+  } else if (headerType === 'FOLIO') {
+    // Inner Page Sleek Broadsheet Folio Strip (~42px height)
+    headerHtml = `
+      <header style="border-top: 1.5px solid #0f172a; border-bottom: 2px solid #0f172a; padding: 2px 0; margin-bottom: 4px; box-sizing: border-box; height: 42px; display: flex; align-items: center; justify-content: space-between; font-family: 'Mukta', 'Noto Serif Devanagari', sans-serif;">
+        <div style="display: flex; align-items: center; gap: 8px; flex: 1; font-size: 11px; font-weight: 700; color: #1e293b;">
+          <span style="font-family: 'Noto Serif Devanagari', serif; font-size: 20px; font-weight: 900; color: #dc2626; line-height: 1;">वार्तिक</span>
+          <span style="color: #94a3b8; font-size: 13px;">|</span>
+          <span>${cleanCity} &bull; ${formattedDate}</span>
+        </div>
+        <div style="flex: 2; display: flex; align-items: center; justify-content: center; gap: 10px;">
+          <span style="height: 1.5px; width: 44px; background-color: #0f172a; display: inline-block;"></span>
+          <div style="background-color: #0f172a; color: #ffffff; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; font-size: 15px; padding: 2px 20px; letter-spacing: 1px; line-height: 1.15; border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);">
+            ${sectionTitle}
+          </div>
+          <span style="height: 1.5px; width: 44px; background-color: #0f172a; display: inline-block;"></span>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 1; font-size: 11.5px; font-weight: 800; color: #0f172a;">
+          <span style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 1px 8px; border-radius: 3px;">पेज 0${pageNum}</span>
+          <span style="color: #64748b; font-weight: 600; font-size: 10.5px;">epaper.vartiq.com</span>
+        </div>
+      </header>
+    `;
+  } else {
+    // Grand Broadsheet Masthead (Page 1 Lead Cover)
+    headerHtml = `
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px solid #0f172a; padding-bottom: 2px; margin-bottom: 2px; font-size: 12px; font-weight: 700; color: #1e293b; font-family: 'Mukta', 'Inter', sans-serif; line-height: 1.15;">
         <div>${cleanCity} &bull; ${formattedDate}</div>
-        <div style="font-style: italic; color: #475569; font-family: 'Noto Serif Devanagari', 'Merriweather', serif;">\u0921\u093f\u091c\u093f\u091f\u0932 \u0938\u0902\u0938\u094d\u0915\u0930\u0923 &bull; epaper</div>
+        <div style="font-style: italic; color: #475569; font-family: 'Noto Serif Devanagari', 'Merriweather', serif;">डिजिटल संस्करण &bull; epaper</div>
         <div>पेज 0${pageNum}</div>
       </div>
-
-      <!-- BIG RED BROADSHEET MASTHEAD (OPTION 1 STYLE: BALANCED 3-PANEL WITH DYNAMIC EDITION RIBBON) -->
-        <header style="border-bottom: 3px double #0f172a; padding-bottom: 2px; margin-bottom: 2px; box-sizing: border-box;">
-          <div style="display: flex; justify-content: space-between; align-items: center; height: 82px; box-sizing: border-box;">
-            
-            <!-- LEFT: VARTIQ LOGO & EDITION METADATA -->
-            <div style="width: 210px; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
-              ${vartiqLogoBase64 ? `<img src="${vartiqLogoBase64}" alt="Vartiq" style="height: 40px; max-width: 175px; object-fit: contain;" />` : `<div style="font-size: 26px; font-weight: 900; color: #dc2626; font-family: 'Noto Serif Devanagari', serif;">वार्तिक</div>`}
-              <div style="font-size: 9.5px; font-weight: 700; color: #475569; font-family: 'Inter', sans-serif; margin-top: 2px; line-height: 1.2;">
-                <span>वर्ष 01 &bull; अंक 145</span><br />
-                <span>डिजिटल संस्करण &bull; मूल्य: नि:शुल्क</span>
-              </div>
+      <header style="border-bottom: 3px double #0f172a; padding-bottom: 2px; margin-bottom: 2px; box-sizing: border-box;">
+        <div style="display: flex; justify-content: space-between; align-items: center; height: 82px; box-sizing: border-box;">
+          <div style="width: 210px; flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center;">
+            <div style="font-size: 26px; font-weight: 900; color: #dc2626; font-family: 'Noto Serif Devanagari', serif;">वार्तिक</div>
+            <div style="font-size: 9.5px; font-weight: 700; color: #475569; font-family: 'Inter', sans-serif; margin-top: 2px; line-height: 1.2;">
+              <span>वर्ष 01 &bull; अंक 145</span><br />
+              <span>डिजिटल संस्करण &bull; मूल्य: नि:शुल्क</span>
             </div>
-
-            <!-- CENTER: GRAND BROADSHEET TITLE & DYNAMIC EDITION RIBBON -->
-            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
-              <h1 style="font-size: 52px; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; color: #dc2626; margin: 0; line-height: 1.0; padding: 0; letter-spacing: -1px;">
-                वार्तिक
-              </h1>
-              <div style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 2px;">
-                <span style="width: 28px; height: 1.5px; background-color: #0f172a; display: inline-block;"></span>
-                <span style="border: 1px solid #0f172a; background-color: #ffffff; color: #020617; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; font-size: 13.5px; padding: 1px 12px; border-radius: 2px; letter-spacing: 0.5px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); line-height: 1.2;">
-                  ${cleanTitle || `अपना ${cleanCity}`}
-                </span>
-                <span style="width: 28px; height: 1.5px; background-color: #0f172a; display: inline-block;"></span>
-              </div>
-              <div style="font-size: 9.5px; font-weight: 700; color: #475569; font-style: italic; font-family: 'Mukta', sans-serif; margin-top: 2px; letter-spacing: 0.5px; line-height: 1.1;">
-                &ldquo;खबर समझो, दुनिया समझो।&rdquo;
-              </div>
-            </div>
-
-            <!-- RIGHT: CLEAN EMPTY SPACE FOR PERFECT OPTICAL CENTERING -->
-            <div style="width: 210px; flex-shrink: 0;"></div>
-
           </div>
-        </header>
+          <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+            <h1 style="font-size: 52px; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; color: #dc2626; margin: 0; line-height: 1.0; padding: 0; letter-spacing: -1px;">
+              वार्तिक
+            </h1>
+            <div style="display: inline-flex; align-items: center; justify-content: center; gap: 8px; margin-top: 2px;">
+              <span style="width: 28px; height: 1.5px; background-color: #0f172a; display: inline-block;"></span>
+              <span style="border: 1px solid #0f172a; background-color: #ffffff; color: #020617; font-family: 'Noto Serif Devanagari', 'Merriweather', serif; font-weight: 900; font-size: 13.5px; padding: 1px 12px; border-radius: 2px; letter-spacing: 0.5px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); line-height: 1.2;">
+                ${sectionTitle || cleanTitle || `अपना ${cleanCity}`}
+              </span>
+              <span style="width: 28px; height: 1.5px; background-color: #0f172a; display: inline-block;"></span>
+            </div>
+            <div style="font-size: 9.5px; font-weight: 700; color: #475569; font-style: italic; font-family: 'Mukta', sans-serif; margin-top: 2px; letter-spacing: 0.5px; line-height: 1.1;">
+              &ldquo;खबर समझो, दुनिया समझो।&rdquo;
+            </div>
+          </div>
+          <div style="width: 210px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end;">
+            <span style="border: 1px solid #0f172a; background-color: #f8fafc; color: #0f172a; font-family: 'Noto Serif Devanagari', serif; font-weight: 800; font-size: 12px; padding: 2px 10px; border-radius: 2px;">
+              ${sectionTitle || 'मुख्य पृष्ठ'}
+            </span>
+          </div>
+        </div>
+      </header>
+    `;
+  }
+
+  const pageHtml = `
+    <div class="broadsheet-page">
+      ${headerHtml}
+
 
       <!-- SLOTS DIRECT ON BROADSHEET CANVAS (EXACT 1:1 REPLICA OF ADMIN CANVAS & WEBSITE MODAL) -->
       ${slotsHtml}

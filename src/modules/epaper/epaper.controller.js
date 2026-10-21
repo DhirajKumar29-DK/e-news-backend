@@ -64,8 +64,17 @@ export const addPage = async (req, res, next) => {
   try {
     const editionSlug = req.body.editionSlug || req.body.edition || 'patna-main';
     const publishDate = req.body.publishDate || req.body.date || new Date().toISOString().split('T')[0];
-    const { pageNumber, title, templateKey } = req.body;
-    const result = await epaperService.addPage(editionSlug, publishDate, pageNumber, title, templateKey);
+    const { pageNumber, title, templateKey, headerType, headerHeight, sectionTitle } = req.body;
+    const result = await epaperService.addPage(
+      editionSlug,
+      publishDate,
+      pageNumber,
+      title,
+      templateKey,
+      headerType,
+      headerHeight,
+      sectionTitle
+    );
     return sendSuccess(res, 'Page added successfully', result, 201);
   } catch (error) {
     next(error);

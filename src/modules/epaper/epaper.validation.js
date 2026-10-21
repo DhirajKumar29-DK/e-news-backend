@@ -43,7 +43,10 @@ export const addPageSchema = Joi.object({
   date: Joi.string().optional(),
   pageNumber: Joi.number().integer().min(1).max(50).optional().default(1),
   title: Joi.string().optional().default('City News'),
-  templateKey: Joi.string().optional().default('layout_1')
+  templateKey: Joi.string().optional().default('layout_1'),
+  headerType: Joi.string().valid('GRAND', 'FOLIO', 'NONE', 'grand', 'folio', 'none').optional(),
+  headerHeight: Joi.number().optional(),
+  sectionTitle: Joi.string().optional().allow('', null)
 }).unknown(true);
 
 export const generatePdfSchema = Joi.object({
