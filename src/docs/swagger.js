@@ -15,12 +15,22 @@ const options = {
       version: '1.0.0',
       description: 'Enterprise REST API Documentation for E-News Platform & 8-Column Broadsheet ePaper Studio Engine'
     },
-    servers: [
-      {
-        url: env.API_BASE_URL ? `${env.API_BASE_URL}/api/v1` : `http://localhost:${env.PORT || 5000}/api/v1`,
-        description: env.NODE_ENV === 'production' ? 'Production Server' : 'Development Server'
+    servers: (() => {
+      const serversList = [];
+      if (env.API_BASE_URL) {
+        const clean = env.API_BASE_URL.replace(/\/$/, '');
+        const prodUrl = clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`;
+        serversList.push({
+          url: prodUrl,
+          description: 'Live Server (backendnews.aiwcrm.in)'
+        });
       }
-    ],
+      serversList.push({
+        url: `http://localhost:${env.PORT || 5000}/api/v1`,
+        description: 'Localhost Server'
+      });
+      return serversList;
+    })(),
     components: {
       securitySchemes: {
         bearerAuth: {
