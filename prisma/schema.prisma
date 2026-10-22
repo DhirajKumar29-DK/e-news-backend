@@ -156,6 +156,11 @@ model Article {
   viewsCount      Int       @default(0)
   likesCount      Int       @default(0)
   readTimeMinutes Int       @default(3)
+    metaTitle       String?   @db.Text
+    metaDescription String?   @db.Text
+    metaKeywords    String?   @db.Text
+    canonicalUrl    String?   @db.Text
+    isIndexed       Boolean   @default(true)
   publishedAt     DateTime  @default(now())
   deletedAt       DateTime?
   createdAt       DateTime  @default(now())

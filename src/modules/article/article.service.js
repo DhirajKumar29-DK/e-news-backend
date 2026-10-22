@@ -50,8 +50,13 @@ export const createArticle = async (data) => {
       tags: tagsStr,
       isLeadStory: Boolean(data.isLeadStory),
       isTrending: Boolean(data.isTrending),
+      isIndexed: typeof data.isIndexed !== 'undefined' ? Boolean(data.isIndexed) : true,
       status: data.status || 'PUBLISHED',
       publishedAt: data.publishedAt ? new Date(data.publishedAt) : new Date(),
+      metaTitle: data.metaTitle ? String(data.metaTitle).trim() : null,
+      metaDescription: data.metaDescription ? String(data.metaDescription).trim() : null,
+      metaKeywords: data.metaKeywords ? String(data.metaKeywords).trim() : null,
+      canonicalUrl: data.canonicalUrl ? String(data.canonicalUrl).trim() : null,
     }
   });
 };
@@ -166,6 +171,27 @@ export const updateArticle = async (id, data) => {
   if (typeof updateData.isTrending !== 'undefined') {
     updateData.isTrending = Boolean(updateData.isTrending);
   }
+  if (typeof updateData.isIndexed !== 'undefined') {
+    updateData.isIndexed = Boolean(updateData.isIndexed);
+  }
+
+  // Sanitize SEO fields
+  if (typeof updateData.metaTitle !== 'undefined') {
+    updateData.metaTitle = updateData.metaTitle ? String(updateData.metaTitle).trim() : null;
+  }
+  if (typeof updateData.metaDescription !== 'undefined') {
+    updateData.metaDescription = updateData.metaDescription ? String(updateData.metaDescription).trim() : null;
+  }
+  if (typeof updateData.metaKeywords !== 'undefined') {
+    updateData.metaKeywords = updateData.metaKeywords ? String(updateData.metaKeywords).trim() : null;
+  }
+  if (typeof updateData.canonicalUrl !== 'undefined') {
+    updateData.canonicalUrl = updateData.canonicalUrl ? String(updateData.canonicalUrl).trim() : null;
+  }
+
+  delete updateData.id;
+  delete updateData.createdAt;
+  delete updateData.updatedAt;
 
   return await prisma.article.update({
     where: { id },
