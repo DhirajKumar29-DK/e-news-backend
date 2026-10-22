@@ -502,12 +502,12 @@ export const savePagesBulk = async (editionSlug, dateString, pages) => {
     }
 
     // Clean old slots for this page before saving fresh slots stack
-    await prisma.paperSlot.updateMany({
-      where: { pageId: page.id, deletedAt: null },
-      data: { deletedAt: new Date() }
-    });
-
-    if (Array.isArray(pg.slots)) {
+    // SAFETY: Only replace slots if pg.slots has items or pg.clearAllSlots is explicitly true.
+    if (Array.isArray(pg.slots) && pg.slots.length > 0) {
+      await prisma.paperSlot.updateMany({
+        where: { pageId: page.id, deletedAt: null },
+        data: { deletedAt: new Date() }
+      });
       for (let i = 0; i < pg.slots.length; i++) {
         const s = pg.slots[i];
         const slotIdx = Number(s.slotNumber || (i + 1));
@@ -551,6 +551,11 @@ export const savePagesBulk = async (editionSlug, dateString, pages) => {
           data: payload
         });
       }
+    } else if (pg.clearAllSlots === true) {
+      await prisma.paperSlot.updateMany({
+        where: { pageId: page.id, deletedAt: null },
+        data: { deletedAt: new Date() }
+      });
     }
   }
 

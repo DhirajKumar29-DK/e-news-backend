@@ -273,8 +273,7 @@ export const getHomeArticles = async () => {
   let quickHighlights = await prisma.article.findMany({
       where: {
         ...baseWhere,
-        tags: { contains: 'quick_highlight' },
-        id: { notIn: excludedFromHighlights }
+        tags: { contains: 'quick_highlight' }
       },
       take: 5,
       orderBy: { publishedAt: 'desc' }
