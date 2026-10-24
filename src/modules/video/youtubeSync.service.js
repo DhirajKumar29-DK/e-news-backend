@@ -272,6 +272,36 @@ export async function syncYouTubeVideos(customChannelInput = null, category = 'n
         uniqueSlug = `${baseSlug}-${v.videoId.toLowerCase()}-${attempts}`;
       }
 
+      let isShort = (v.title && /#short|#shorts|#reel|#reels|\bshorts?\b/i.test(v.title)) ||
+                    (v.description && /#short|#shorts|#reel|#reels|\bshorts?\b/i.test(v.description)) ||
+                    (v.videoUrl && v.videoUrl.includes('/shorts/'));
+
+      let detectedDuration = isShort ? 45 : 0;
+      let durStr = isShort ? '00:45' : '00:00';
+
+      if (!isShort && v.videoId) {
+        try {
+          const ytPage = await fetch('https://www.youtube.com/watch?v=' + v.videoId, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+          });
+          const ytHtml = await ytPage.text();
+          if (ytHtml.includes('/shorts/' + v.videoId)) {
+            isShort = true;
+          }
+          const lenMatch = ytHtml.match(/"lengthSeconds":"(\d+)"/);
+          if (lenMatch) {
+            const sec = parseInt(lenMatch[1], 10);
+            detectedDuration = sec;
+            const min = Math.floor(sec / 60).toString().padStart(2, '0');
+            const s = (sec % 60).toString().padStart(2, '0');
+            durStr = min + ':' + s;
+            if (sec > 0 && sec <= 65) {
+              isShort = true;
+            }
+          }
+        } catch (_) {}
+      }
+
       // 3. Save into Database
       await prisma.video.create({
         data: {
@@ -279,12 +309,14 @@ export async function syncYouTubeVideos(customChannelInput = null, category = 'n
           slug: uniqueSlug,
           description: v.description ? v.description.substring(0, 1500) : null,
           videoType: 'URL',
-          videoUrl: v.videoUrl,
+          videoUrl: isShort ? `https://www.youtube.com/shorts/${v.videoId}` : v.videoUrl,
           youtubeId: v.videoId,
           thumbnailUrl: v.thumbnailUrl,
-          duration: '00:00',
-          durationSeconds: 0,
+          duration: durStr,
+          durationSeconds: detectedDuration,
           category: (category || 'news').toLowerCase(),
+          subCategory: isShort ? 'shorts' : 'bulletin',
+          badge: isShort ? 'SHORTS' : 'NEWS',
           reporterName: v.channelTitle || 'YouTube Desk',
           status: 'PUBLISHED',
           publishedAt: v.publishedAt || new Date()
