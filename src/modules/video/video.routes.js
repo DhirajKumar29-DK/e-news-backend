@@ -7,13 +7,14 @@ const router = Router();
 // 1. Direct Video File Upload (MP4, WebM, MOV)
 router.post('/upload', uploadVideoFile.single('video'), videoController.uploadVideoFile);
 
-// 2. Custom Thumbnail Image Upload
-router.post('/upload-thumbnail', uploadArticleImage.single('image'), (req, res) => {
-  if (!req.file) {
+// 2. Custom Thumbnail Image Upload (supports both 'image' and 'thumbnail' field names)
+router.post('/upload-thumbnail', uploadArticleImage.fields([{ name: 'image', maxCount: 1 }, { name: 'thumbnail', maxCount: 1 }]), (req, res) => {
+  const file = req.files?.image?.[0] || req.files?.thumbnail?.[0] || req.file;
+  if (!file) {
     return res.status(400).json({ success: false, message: 'No thumbnail file uploaded' });
   }
-  const imageUrl = `/uploads/articles/${req.file.filename}`;
-  res.status(201).json({ success: true, message: 'Thumbnail uploaded', data: { imageUrl } });
+  const imageUrl = `/uploads/articles/${file.filename}`;
+  res.status(201).json({ success: true, message: 'Thumbnail uploaded', data: { imageUrl, thumbnailUrl: imageUrl } });
 });
 
 // 3. Showcase Feed (Featured Hero + Top 5 Trending + Recents)
