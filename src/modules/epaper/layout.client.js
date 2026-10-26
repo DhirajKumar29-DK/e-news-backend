@@ -514,15 +514,25 @@ function renderSlot(rawS, targetContainer) {
 window.runEpaperLayout = function() {
   const pageEls = document.querySelectorAll('.broadsheet-page');
   pageEls.forEach(pageEl => {
-    const idMatch = pageEl.id.match(/page-(\d+)/);
-    if (idMatch) {
-      const pNum = idMatch[1];
-      const slotsVar = window['PAGE_' + pNum + '_SLOTS'];
-      const target = document.getElementById('slots-layer-' + pNum);
-      if (slotsVar && target) {
-        target.innerHTML = '';
-        slotsVar.forEach(s => renderSlot(s, target));
+    try {
+      const idMatch = pageEl.id.match(/page-(d+)/);
+      if (idMatch) {
+        const pNum = idMatch[1];
+        const slotsVar = window['PAGE_' + pNum + '_SLOTS'];
+        const target = document.getElementById('slots-layer-' + pNum);
+        if (slotsVar && target) {
+          target.innerHTML = '';
+          slotsVar.forEach((s, sIdx) => {
+            try {
+              renderSlot(s, target);
+            } catch (slotErr) {
+              console.error('Error rendering slot ' + sIdx + ' on page ' + pNum + ':', slotErr);
+            }
+          });
+        }
       }
+    } catch (pageErr) {
+      console.error('Error in runEpaperLayout for page:', pageErr);
     }
   });
 };

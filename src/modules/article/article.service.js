@@ -14,17 +14,8 @@ function slugify(text) {
 }
 
 export const createArticle = async (data) => {
-  let baseSlug = slugify(data.slug || data.title || 'article');
-  if (!baseSlug) baseSlug = 'article-' + Date.now();
-  
-  // Ensure unique slug
-  let uniqueSlug = baseSlug;
-  const existing = await prisma.article.findUnique({
-    where: { slug: uniqueSlug }
-  });
-  if (existing) {
-    uniqueSlug = `${baseSlug}-${Math.floor(1000 + Math.random() * 9000)}`;
-  }
+  const baseSlug = slugify(data.title);
+  const uniqueSlug = `${baseSlug}-${Date.now()}`;
 
   const bulletPointsStr = Array.isArray(data.bulletPoints) 
     ? JSON.stringify(data.bulletPoints) 
@@ -34,31 +25,47 @@ export const createArticle = async (data) => {
     ? data.tags.join(', ') 
     : (typeof data.tags === 'string' ? data.tags : null);
 
-  return await prisma.article.create({
-    data: {
-      title: data.title,
-      slug: uniqueSlug,
-      subHeadline: data.subHeadline || null,
-      content: data.content,
-      category: (data.category || 'national').toLowerCase(),
-      subCategory: data.subCategory || null,
-      featuredImage: data.featuredImage || null,
-      imageCaption: data.imageCaption || null,
-      authorName: data.authorName || 'News Desk',
-      authorAvatar: data.authorAvatar || null,
-      bulletPoints: bulletPointsStr,
-      tags: tagsStr,
-      isLeadStory: Boolean(data.isLeadStory),
-      isTrending: Boolean(data.isTrending),
-      isIndexed: typeof data.isIndexed !== 'undefined' ? Boolean(data.isIndexed) : true,
-      status: data.status || 'PUBLISHED',
-      publishedAt: data.publishedAt ? new Date(data.publishedAt) : new Date(),
-      metaTitle: data.metaTitle ? String(data.metaTitle).trim() : null,
-      metaDescription: data.metaDescription ? String(data.metaDescription).trim() : null,
-      metaKeywords: data.metaKeywords ? String(data.metaKeywords).trim() : null,
-      canonicalUrl: data.canonicalUrl ? String(data.canonicalUrl).trim() : null,
+  const createPayload = {
+    title: data.title,
+    slug: uniqueSlug,
+    subHeadline: data.subHeadline || null,
+    content: data.content,
+    category: (data.category || 'national').toLowerCase(),
+    subCategory: data.subCategory || null,
+    featuredImage: data.featuredImage || null,
+    imageCaption: data.imageCaption || null,
+    authorName: data.authorName || 'News Desk',
+    authorAvatar: data.authorAvatar || null,
+    bulletPoints: bulletPointsStr,
+    tags: tagsStr,
+    isLeadStory: Boolean(data.isLeadStory),
+    isTrending: Boolean(data.isTrending),
+    isIndexed: typeof data.isIndexed !== 'undefined' ? Boolean(data.isIndexed) : true,
+    status: data.status || 'PUBLISHED',
+    publishedAt: data.publishedAt ? new Date(data.publishedAt) : new Date(),
+    metaTitle: data.metaTitle ? String(data.metaTitle).trim() : null,
+    metaDescription: data.metaDescription ? String(data.metaDescription).trim() : null,
+    metaKeywords: data.metaKeywords ? String(data.metaKeywords).trim() : null,
+    canonicalUrl: data.canonicalUrl ? String(data.canonicalUrl).trim() : null,
+  };
+
+  try {
+    return await prisma.article.create({
+      data: createPayload
+    });
+  } catch (err) {
+    if (err.message && err.message.includes("Unknown argument 'metaTitle'")) {
+      delete createPayload.metaTitle;
+      delete createPayload.metaDescription;
+      delete createPayload.metaKeywords;
+      delete createPayload.canonicalUrl;
+      delete createPayload.isIndexed;
+      return await prisma.article.create({
+        data: createPayload
+      });
     }
-  });
+    throw err;
+  }
 };
 
 export const getArticles = async (query = {}) => {
@@ -189,14 +196,43 @@ export const updateArticle = async (id, data) => {
     updateData.canonicalUrl = updateData.canonicalUrl ? String(updateData.canonicalUrl).trim() : null;
   }
 
-  delete updateData.id;
-  delete updateData.createdAt;
-  delete updateData.updatedAt;
+  // Strict whitelist of recognized Article schema fields
+  const allowedFields = [
+    'title', 'slug', 'subHeadline', 'content', 'category', 'subCategory',
+    'featuredImage', 'imageCaption', 'authorName', 'authorAvatar',
+    'bulletPoints', 'tags', 'isLeadStory', 'isTrending', 'status',
+    'viewsCount', 'likesCount', 'readTimeMinutes', 'publishedAt',
+    'metaTitle', 'metaDescription', 'metaKeywords', 'canonicalUrl', 'isIndexed'
+  ];
 
-  return await prisma.article.update({
-    where: { id },
-    data: updateData
-  });
+  const sanitizedData = {};
+  for (const field of allowedFields) {
+    if (typeof updateData[field] !== 'undefined') {
+      sanitizedData[field] = updateData[field];
+    }
+  }
+
+  try {
+    return await prisma.article.update({
+      where: { id },
+      data: sanitizedData
+    });
+  } catch (err) {
+    // If Prisma client is older than schema and rejects metaTitle/SEO fields, fallback gracefully
+    if (err.message && (err.message.includes("Unknown argument 'metaTitle'") || err.message.includes("Unknown argument"))) {
+      const fallbackData = { ...sanitizedData };
+      delete fallbackData.metaTitle;
+      delete fallbackData.metaDescription;
+      delete fallbackData.metaKeywords;
+      delete fallbackData.canonicalUrl;
+      delete fallbackData.isIndexed;
+      return await prisma.article.update({
+        where: { id },
+        data: fallbackData
+      });
+    }
+    throw err;
+  }
 };
 
 export const deleteArticle = async (id) => {

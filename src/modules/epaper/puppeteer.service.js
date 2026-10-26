@@ -250,6 +250,8 @@ export function wrapFullDocument(pagesHtml, title = 'Broadsheet E-Paper') {
       padding: 8px 40px 40px 40px;
       box-sizing: border-box;
       overflow: hidden;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
       page-break-after: always;
       break-after: page;
     }
@@ -286,12 +288,106 @@ ${layoutClientJs}
 </html>`;
 }
 
+export function getChromeExecutablePath() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  if (process.env.CHROME_BIN && fs.existsSync(process.env.CHROME_BIN)) {
+    return process.env.CHROME_BIN;
+  }
+  if (process.env.CHROME_PATH && fs.existsSync(process.env.CHROME_PATH)) {
+    return process.env.CHROME_PATH;
+  }
+
+  const linuxPaths = [
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/snap/bin/chromium',
+    '/opt/google/chrome/chrome',
+    '/opt/google/chrome/google-chrome'
+  ];
+
+  const windowsPaths = [
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+    path.join(process.env.LOCALAPPDATA || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    path.join(process.env.PROGRAMFILES || '', 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    path.join(process.env['PROGRAMFILES(X86)'] || '', 'Google', 'Chrome', 'Application', 'chrome.exe')
+  ];
+
+  const candidatePaths = process.platform === 'win32' ? windowsPaths : linuxPaths;
+
+  for (const candidate of candidatePaths) {
+    if (candidate && fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+export async function launchBrowser() {
+  const executablePath = getChromeExecutablePath();
+  const launchOptions = {
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--font-render-hinting=medium',
+      '--no-first-run',
+      '--no-zygote',
+      '--hide-scrollbars'
+    ]
+  };
+
+  if (executablePath) {
+    launchOptions.executablePath = executablePath;
+  }
+
+  return await puppeteer.launch(launchOptions);
+}
+
 async function waitForPageAssets(page) {
   try {
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    await page.evaluateHandle('document.fonts.ready');
+    page.on('pageerror', err => console.warn('[Puppeteer PageError]:', err.message));
+
+    // 1. Font readiness with safe timeout guard
     await page.evaluate(async () => {
-      if (typeof window.runEpaperLayout === 'function') window.runEpaperLayout();
+      try {
+        if (document.fonts && document.fonts.ready) {
+          await Promise.race([
+            document.fonts.ready,
+            new Promise(res => setTimeout(res, 2500))
+          ]);
+        }
+      } catch (fErr) {}
+    });
+
+    // 2. Explicitly trigger layout
+    await page.evaluate(() => {
+      try {
+        if (typeof window.runEpaperLayout === 'function') {
+          window.runEpaperLayout();
+        }
+      } catch (layoutErr) {
+        console.error('runEpaperLayout invocation error:', layoutErr);
+      }
+    });
+
+    // 3. Wait for slots layer to be populated or document ready
+    await page.waitForFunction(() => {
+      const layers = document.querySelectorAll('.slots-layer');
+      if (!layers.length) return true;
+      return Array.from(layers).some(layer => layer.children.length > 0) || document.readyState === 'complete';
+    }, { timeout: 4000 }).catch(() => {});
+
+    // 4. Safe image load waiting with timeout
+    await page.evaluate(async () => {
       const images = Array.from(document.querySelectorAll('img'));
       await Promise.all(
         images.map(img => {
@@ -299,27 +395,21 @@ async function waitForPageAssets(page) {
           return new Promise(resolve => {
             img.addEventListener('load', resolve, { once: true });
             img.addEventListener('error', resolve, { once: true });
-            setTimeout(resolve, 8000);
+            setTimeout(resolve, 4000);
           });
         })
       );
     });
+
+    // Emulate screen media to guarantee exact layout and styling
+    await page.emulateMediaType('screen');
   } catch (e) {
     console.warn('waitForPageAssets note:', e.message);
   }
 }
 
 export async function generateIssuePdf(opts) {
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--font-render-hinting=medium',
-      '--disable-gpu'
-    ]
-  });
+  const browser = await launchBrowser();
 
   try {
     const pdfDir = path.join(process.cwd(), 'public', 'uploads', 'pdfs');
@@ -336,81 +426,64 @@ export async function generateIssuePdf(opts) {
     const mergedPdf = await PDFDocument.create();
     const pageImageUrls = [];
 
-    const allPagesFragments = [];
     const pagesToRender = (pages && pages.length > 0) ? pages : [{ pageNumber: 1, slots: [] }];
 
     for (let pIdx = 0; pIdx < pagesToRender.length; pIdx++) {
       const pageObj = pagesToRender[pIdx];
       const pageNum = pageObj.pageNumber || (pIdx + 1);
       const { pageHtml } = buildPageFragment(opts, pageObj, pIdx);
-      allPagesFragments.push(pageHtml);
+      const singlePageHtml = wrapFullDocument(pageHtml, `${editionSlug} - Page ${pageNum}`);
 
-      // Generate page thumbnail webp
+      const page = await browser.newPage();
       try {
-        const singlePageHtml = wrapFullDocument(pageHtml, `${editionSlug} - Page ${pageNum}`);
-        const thumbPage = await browser.newPage();
-        await thumbPage.setViewport({ width: 1344, height: 2112, deviceScaleFactor: 1 });
-        await thumbPage.setContent(singlePageHtml, { waitUntil: 'domcontentloaded' });
-        await waitForPageAssets(thumbPage);
+        await page.setViewport({ width: 1344, height: 2112, deviceScaleFactor: 2 });
+        await page.setContent(singlePageHtml, { waitUntil: 'domcontentloaded' });
+        await waitForPageAssets(page);
 
+        // 1. Generate page thumbnail webp
         const pageImgFilename = `${editionSlug}-${publishDate}-page-${pageNum}.webp`;
         const pageImgPath = path.join(pageImgDir, pageImgFilename);
-        await thumbPage.screenshot({
+        await page.screenshot({
           path: pageImgPath,
           type: 'webp',
           quality: 90
         });
-        await thumbPage.close();
 
         pageImageUrls.push({
           pageNumber: pageNum,
           pageImage: `/uploads/epaper/pages/${pageImgFilename}`
         });
-      } catch (thumbErr) {
-        console.warn(`Thumb generation for page ${pageNum} skipped:`, thumbErr.message);
+
+        // 2. Generate exact 1:1 single-page PDF (Screen-mode emulation)
+        await page.emulateMediaType('screen');
+        const pagePdfBuffer = await page.pdf({
+          width: '1344px',
+          height: '2112px',
+          printBackground: true,
+          preferCSSPageSize: true,
+          margin: { top: 0, right: 0, bottom: 0, left: 0 }
+        });
+
+        // Append to mergedPdf
+        const singleDoc = await PDFDocument.load(pagePdfBuffer);
+        const copiedPages = await mergedPdf.copyPages(singleDoc, [0]);
+        mergedPdf.addPage(copiedPages[0]);
+      } catch (pageErr) {
+        console.warn(`Error generating page ${pageNum}:`, pageErr.message);
+      } finally {
+        await page.close();
       }
     }
 
-    const fullDocHtml = wrapFullDocument(allPagesFragments.join('\n'), `${editionSlug} - ${publishDate}`);
-    const fullPdfPage = await browser.newPage();
-    await fullPdfPage.setViewport({ width: 1344, height: 2112, deviceScaleFactor: 2 });
-    await fullPdfPage.setContent(fullDocHtml, { waitUntil: 'domcontentloaded' });
-    await waitForPageAssets(fullPdfPage);
-
+    // Save final merged PDF
     const pdfFilename = `epaper-${editionSlug}-${publishDate}-${Date.now()}.pdf`;
     const pdfPath = path.join(pdfDir, pdfFilename);
-
-    await fullPdfPage.pdf({
-      path: pdfPath,
-      width: '1344px',
-      height: '2112px',
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: { top: 0, right: 0, bottom: 0, left: 0 }
-    });
-
-    // Safeguard: Ensure exact page count (removes any stray blank trailing page)
-    try {
-      const rawPdfBytes = fs.readFileSync(pdfPath);
-      const pdfDoc = await PDFDocument.load(rawPdfBytes);
-      let pageCountChanged = false;
-      while (pdfDoc.getPageCount() > pagesToRender.length) {
-        pdfDoc.removePage(pdfDoc.getPageCount() - 1);
-        pageCountChanged = true;
-      }
-      if (pageCountChanged) {
-        const cleanedPdfBytes = await pdfDoc.save();
-        fs.writeFileSync(pdfPath, cleanedPdfBytes);
-      }
-    } catch (cleanErr) {
-      console.warn('PDF page count cleanup note:', cleanErr.message);
-    }
+    const mergedPdfBytes = await mergedPdf.save();
+    fs.writeFileSync(pdfPath, mergedPdfBytes);
 
     const latestPdfFilename = `epaper-${editionSlug}-${publishDate}.pdf`;
     const latestPdfPath = path.join(pdfDir, latestPdfFilename);
     fs.copyFileSync(pdfPath, latestPdfPath);
-
-    await fullPdfPage.close();
 
     return {
       pdfUrl: `/uploads/pdfs/${pdfFilename}`,
