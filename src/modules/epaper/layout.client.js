@@ -74,12 +74,12 @@ function getMeasureDiv() {
 
 function findBestTokenFit(tokens, startTokenIdx, width, height, cols, fontSize, colGap) {
   if (startTokenIdx >= tokens.length) return tokens.length;
-  if (height <= 0) return startTokenIdx;
+  const lineH = getSummaryLineHeight(fontSize);
+  if (height < lineH) return startTokenIdx;
 
   const div = getMeasureDiv();
   const targetW = Math.max(50, width);
-  const targetH = Math.max(20, height);
-  const lineH = getSummaryLineHeight(fontSize);
+  const targetH = height;
 
   div.style.width = targetW + 'px';
   if (cols > 1) {
@@ -139,7 +139,7 @@ function findBestTokenFit(tokens, startTokenIdx, width, height, cols, fontSize, 
       high = mid - 1;
     }
   }
-  return Math.max(startTokenIdx + 1, bestFit);
+  return bestFit;
 }
 
 function renderSlot(rawS, targetContainer) {
@@ -262,16 +262,27 @@ function renderSlot(rawS, targetContainer) {
   const availableStoryH = Math.max(20, height - (8 + headerH + 4 + 4));
   const hasImage = Boolean(rawS.imageUrl);
   const photoTotalH = hasImage ? (imgH + 2) : 0;
-  const underPhotoH = Math.max(20, availableStoryH - photoTotalH);
+  const rawUnderH = availableStoryH - photoTotalH;
+  const minRequiredH = lineH * 2; // Need at least 2 full readable lines (~38-44px)
+  const underPhotoH = rawUnderH >= minRequiredH ? rawUnderH : 0;
+
+  let comp = rawS.computedSections;
+  if (!comp && rawS.subStories) {
+    try {
+      comp = typeof rawS.subStories === 'string' ? JSON.parse(rawS.subStories) : rawS.subStories;
+    } catch (_) {}
+  }
+  const hasPrecomputed = Boolean(comp && typeof comp === 'object' && (comp.text1 !== undefined || comp.textNoImg !== undefined || comp.text2 !== undefined || comp.text3 !== undefined));
 
   const summaryText = decodeHtmlEntities(rawS.summary || rawS.contentText || '');
   const tokens = sliceHtmlTokens(summaryText);
 
   if (!hasImage) {
-    const fitNoImg = findBestTokenFit(tokens, 0, cardContentW, availableStoryH, colsCount, summaryFont, colGap);
-    const textNoImg = buildHtmlFromTokens(tokens, 0, fitNoImg);
+    const textNoImg = (hasPrecomputed && comp.text1 !== undefined)
+      ? comp.text1
+      : buildHtmlFromTokens(tokens, 0, findBestTokenFit(tokens, 0, cardContentW, availableStoryH, colsCount, summaryFont, colGap));
     const dividerRule = showDivider && colsCount > 1 ? 'column-rule: 1px solid #cbd5e1;' : '';
-    bodyEl.innerHTML = `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${colsCount > 1 ? colsCount : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; height: 100%; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; ${dividerRule}">${textNoImg}</div>`;
+    bodyEl.innerHTML = `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${colsCount > 1 ? colsCount : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; height: 100%; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; white-space: pre-line; word-break: break-word; ${dividerRule}">${textNoImg}</div>`;
   } else if (colsCount === 1 || isFullCardPhoto) {
     const isTopSpanPhoto = imageWrapMode === 'top-span' || (rawS.imageWidth && rawS.imageWidth >= cardContentW - 30);
     const currentImgW = isTopSpanPhoto ? cardContentW : Math.min(imgW || 180, cardContentW);
@@ -307,6 +318,8 @@ function renderSlot(rawS, targetContainer) {
     textEl.style.paddingRight = '2px';
     textEl.style.textAlign = 'justify';
     textEl.style.textJustify = 'inter-word';
+    textEl.style.whiteSpace = 'pre-line';
+    textEl.style.wordBreak = 'break-word';
     if (colsCount > 1) {
       textEl.style.columnCount = colsCount;
       textEl.style.columnGap = colGap + 'px';
@@ -315,8 +328,10 @@ function renderSlot(rawS, targetContainer) {
       if (showDivider) textEl.style.columnRule = '1px solid #cbd5e1';
     }
 
-    const fitSingleCol = findBestTokenFit(tokens, 0, cardContentW, underPhotoH, colsCount, summaryFont, colGap);
-    textEl.innerHTML = buildHtmlFromTokens(tokens, 0, fitSingleCol);
+    const fullText = (hasPrecomputed && comp.text1 !== undefined)
+      ? comp.text1
+      : buildHtmlFromTokens(tokens, 0, findBestTokenFit(tokens, 0, cardContentW, underPhotoH, colsCount, summaryFont, colGap));
+    textEl.innerHTML = fullText;
 
     const flexCol = document.createElement('div');
     flexCol.style.display = 'flex';
@@ -372,57 +387,60 @@ function renderSlot(rawS, targetContainer) {
       localPhotoPxX = Math.round(localMaxPxX / 2);
     }
 
-    let curTokenIdx = 0;
     let text1 = '';
     let text2 = '';
     let text2b = '';
     let text3 = '';
 
-    if (leftCols > 0) {
-      if (photoCols > 0 || rightCols > 0) {
-        const fit1 = findBestTokenFit(tokens, curTokenIdx, leftSectionW, availableStoryH, leftCols, summaryFont, colGap);
-        text1 = buildHtmlFromTokens(tokens, curTokenIdx, fit1);
-        curTokenIdx = fit1;
-      } else {
-        text1 = buildHtmlFromTokens(tokens, curTokenIdx, tokens.length);
-        curTokenIdx = tokens.length;
-      }
-    }
+    if (hasPrecomputed && comp.text1 !== undefined) {
+      text1 = comp.text1 || '';
+      // Only show text2 under photo if there is sufficient vertical space
+      text2 = (underPhotoH >= minRequiredH || comp.underPhotoH >= minRequiredH) ? (comp.text2 || '') : '';
+      text2b = comp.text2b || '';
+      text3 = comp.text3 || '';
+    } else {
+      let curTokenIdx = 0;
 
-    if (vertAlign === 'middle') {
-      const midTopH = Math.max(0, Math.floor(underPhotoH / 2));
-      const midBottomH = Math.max(0, Math.ceil(underPhotoH / 2));
-
-      if (curTokenIdx < tokens.length && midTopH >= 20) {
-        const fit2a = findBestTokenFit(tokens, curTokenIdx, photoSectionW, midTopH, photoCols, summaryFont, colGap);
-        text2 = buildHtmlFromTokens(tokens, curTokenIdx, fit2a);
-        curTokenIdx = fit2a;
-      }
-
-      if (curTokenIdx < tokens.length && midBottomH >= 20) {
-        if (rightCols > 0) {
-          const fit2b = findBestTokenFit(tokens, curTokenIdx, photoSectionW, midBottomH, photoCols, summaryFont, colGap);
-          text2b = buildHtmlFromTokens(tokens, curTokenIdx, fit2b);
-          curTokenIdx = fit2b;
+      if (leftCols > 0) {
+        if (photoCols > 0 || rightCols > 0) {
+          const fit1 = findBestTokenFit(tokens, curTokenIdx, leftSectionW, availableStoryH, leftCols, summaryFont, colGap);
+          text1 = buildHtmlFromTokens(tokens, curTokenIdx, fit1);
+          curTokenIdx = fit1;
         } else {
+          text1 = buildHtmlFromTokens(tokens, curTokenIdx, tokens.length);
+          curTokenIdx = tokens.length;
+        }
+      }
+
+      if (vertAlign === 'middle') {
+        const midTopH = Math.max(0, Math.floor(underPhotoH / 2));
+        const midBottomH = Math.max(0, Math.ceil(underPhotoH / 2));
+
+        if (curTokenIdx < tokens.length && midTopH >= minRequiredH) {
+          const fit2a = findBestTokenFit(tokens, curTokenIdx, photoSectionW, midTopH, photoCols, summaryFont, colGap);
+          text2 = buildHtmlFromTokens(tokens, curTokenIdx, fit2a);
+          curTokenIdx = fit2a;
+        }
+
+        if (curTokenIdx < tokens.length && midBottomH >= minRequiredH) {
           const fit2b = findBestTokenFit(tokens, curTokenIdx, photoSectionW, midBottomH, photoCols, summaryFont, colGap);
           text2b = buildHtmlFromTokens(tokens, curTokenIdx, fit2b);
           curTokenIdx = fit2b;
         }
+      } else {
+        // top or bottom - Only fit text under photo if there is room for at least 2 full readable lines!
+        if (underPhotoH >= minRequiredH && curTokenIdx < tokens.length) {
+          const fit2 = findBestTokenFit(tokens, curTokenIdx, photoSectionW, underPhotoH, photoCols, summaryFont, colGap);
+          text2 = buildHtmlFromTokens(tokens, curTokenIdx, fit2);
+          curTokenIdx = fit2;
+        }
       }
-    } else {
-      // top or bottom
-      if (curTokenIdx < tokens.length) {
-        const fit2 = findBestTokenFit(tokens, curTokenIdx, photoSectionW, underPhotoH, photoCols, summaryFont, colGap);
-        text2 = buildHtmlFromTokens(tokens, curTokenIdx, fit2);
-        curTokenIdx = fit2;
-      }
-    }
 
-    if (rightCols > 0 && curTokenIdx < tokens.length) {
-      const fit3 = findBestTokenFit(tokens, curTokenIdx, rightSectionW, availableStoryH, rightCols, summaryFont, colGap);
-      text3 = buildHtmlFromTokens(tokens, curTokenIdx, fit3);
-      curTokenIdx = fit3;
+      if (rightCols > 0 && curTokenIdx < tokens.length) {
+        const fit3 = findBestTokenFit(tokens, curTokenIdx, rightSectionW, availableStoryH, rightCols, summaryFont, colGap);
+        text3 = buildHtmlFromTokens(tokens, curTokenIdx, fit3);
+        curTokenIdx = fit3;
+      }
     }
 
     const photoBlockHtml = `
@@ -448,7 +466,7 @@ function renderSlot(rawS, targetContainer) {
       leftColEl.style.flexShrink = '0';
       leftColEl.style.overflow = 'hidden';
       const dividerRule = showDivider && leftCols > 1 ? 'column-rule: 1px solid #cbd5e1;' : '';
-      leftColEl.innerHTML = `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${leftCols > 1 ? leftCols : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; height: 100%; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; ${dividerRule}">${text1}</div>`;
+      leftColEl.innerHTML = `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${leftCols > 1 ? leftCols : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; height: 100%; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; white-space: pre-line; word-break: break-word; ${dividerRule}">${text1}</div>`;
       flexRow.appendChild(leftColEl);
 
       if (showDivider) {
@@ -472,8 +490,8 @@ function renderSlot(rawS, targetContainer) {
     photoSectionEl.style.overflow = 'hidden';
 
     const photoDividerRule = showDivider && photoCols > 1 ? 'column-rule: 1px solid #cbd5e1;' : '';
-    const text2Html = text2 ? `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${photoCols > 1 ? photoCols : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; flex: 1; height: 100%; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; ${photoDividerRule}">${text2}</div>` : '';
-    const text2bHtml = text2b ? `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${photoCols > 1 ? photoCols : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; flex: 1; height: 100%; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; ${photoDividerRule}">${text2b}</div>` : '';
+    const text2Html = text2 ? `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${photoCols > 1 ? photoCols : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; flex: 1; height: 100%; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; white-space: pre-line; word-break: break-word; ${photoDividerRule}">${text2}</div>` : '';
+    const text2bHtml = text2b ? `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${photoCols > 1 ? photoCols : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; flex: 1; height: 100%; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; white-space: pre-line; word-break: break-word; ${photoDividerRule}">${text2b}</div>` : '';
 
     if (vertAlign === 'bottom') {
       photoSectionEl.innerHTML = text2Html + photoBlockHtml;
@@ -503,7 +521,7 @@ function renderSlot(rawS, targetContainer) {
       rightColEl.style.flex = '1';
       rightColEl.style.overflow = 'hidden';
       const rightDividerRule = showDivider && rightCols > 1 ? 'column-rule: 1px solid #cbd5e1;' : '';
-      rightColEl.innerHTML = `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${rightCols > 1 ? rightCols : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; height: 100%; flex: 1; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; ${rightDividerRule}">${text3}</div>`;
+      rightColEl.innerHTML = `<div class="broadsheet-story-text" style="--story-line-h: ${lineH}px; font-size: ${summaryFont}px; line-height: ${lineH}px; color: ${rawS.summaryColor || '#1e293b'}; column-count: ${rightCols > 1 ? rightCols : 'unset'}; column-gap: ${colGap}px; column-fill: auto; -webkit-column-fill: auto; height: 100%; flex: 1; overflow: hidden; padding-bottom: 0px; padding-right: 2px; text-align: justify; text-justify: inter-word; white-space: pre-line; word-break: break-word; ${rightDividerRule}">${text3}</div>`;
       flexRow.appendChild(rightColEl);
     }
 

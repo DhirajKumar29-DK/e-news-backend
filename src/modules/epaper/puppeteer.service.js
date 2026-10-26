@@ -269,8 +269,15 @@ export function wrapFullDocument(pagesHtml, title = 'Broadsheet E-Paper') {
       word-break: break-word;
       text-align: justify;
       text-justify: inter-word;
+      white-space: pre-line !important;
       column-fill: auto !important;
       -webkit-column-fill: auto !important;
+    }
+    .broadsheet-story-text mark {
+      background-color: #fef08a;
+      padding: 1px 3px;
+      border-radius: 2px;
+      font-weight: 700;
     }
     .broadsheet-story-text p {
       margin-top: 0 !important;
@@ -281,7 +288,7 @@ export function wrapFullDocument(pagesHtml, title = 'Broadsheet E-Paper') {
     @page { size: 1344px 2112px; margin: 0; }
   </style>
   <script>
-${layoutClientJs}
+${fs.readFileSync(layoutClientPath, "utf8")}
   </script>
 </head>
 <body>${pagesHtml}</body>
