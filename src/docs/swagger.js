@@ -22,12 +22,12 @@ const options = {
         const prodUrl = clean.endsWith('/api/v1') ? clean : `${clean}/api/v1`;
         serversList.push({
           url: prodUrl,
-          description: `Live Server (${clean})`
+          description: 'Live Server (backendnews.aiwcrm.in)'
         });
       }
       serversList.push({
         url: `http://localhost:${env.PORT || 5000}/api/v1`,
-        description: 'Localhost Development Server'
+        description: 'Localhost Server'
       });
       return serversList;
     })(),
