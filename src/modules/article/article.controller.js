@@ -1,5 +1,6 @@
-﻿import * as articleService from './article.service.js';
+import * as articleService from './article.service.js';
 import { sendSuccess, sendError } from '../../utils/response.js';
+import { env } from '../../config/env.js';
 
 export const createArticle = async (req, res, next) => {
   try {
@@ -70,11 +71,19 @@ export const uploadImage = async (req, res, next) => {
     if (!req.file) {
       return sendError(res, 'No image file uploaded', null, 400);
     }
-    const host = req.get('host');
-    const protocol = req.protocol;
-    const imageUrl = `${protocol}://${host}/uploads/articles/${req.file.filename}`;
+    const relativeUrl = `/uploads/articles/${req.file.filename}`;
+    let imageUrl = relativeUrl;
+    if (env.API_BASE_URL) {
+      const clean = env.API_BASE_URL.replace(/\/$/, '').replace(/\/api\/v1$/, '');
+      imageUrl = `${clean}${relativeUrl}`;
+    } else {
+      const host = req.get('host');
+      const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+      imageUrl = `${protocol}://${host}${relativeUrl}`;
+    }
     return sendSuccess(res, 'Image uploaded successfully', {
       imageUrl,
+      relativeUrl,
       filename: req.file.filename
     });
   } catch (error) {
