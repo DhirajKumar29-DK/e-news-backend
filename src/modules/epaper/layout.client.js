@@ -515,9 +515,8 @@ window.runEpaperLayout = function() {
   const pageEls = document.querySelectorAll('.broadsheet-page');
   pageEls.forEach(pageEl => {
     try {
-      const idMatch = pageEl.id.match(/page-(d+)/);
-      if (idMatch) {
-        const pNum = idMatch[1];
+      const pNum = pageEl.id ? pageEl.id.replace(/^page-/, '') : null;
+      if (pNum) {
         const slotsVar = window['PAGE_' + pNum + '_SLOTS'];
         const target = document.getElementById('slots-layer-' + pNum);
         if (slotsVar && target) {
