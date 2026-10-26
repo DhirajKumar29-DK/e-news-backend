@@ -54,7 +54,7 @@ export const createArticle = async (data) => {
       data: createPayload
     });
   } catch (err) {
-    if (err.message && (err.message.includes("Unknown argument 'metaTitle'") || err.message.includes("Unknown argument 'isIndexed'") || err.message.includes("Unknown argument"))) {
+    if (err.message && (err.message.includes("isIndexed") || err.message.includes("metaTitle") || err.message.includes("Unknown argument") || err.message.includes("Unknown column"))) {
       delete createPayload.metaTitle;
       delete createPayload.metaDescription;
       delete createPayload.metaKeywords;
@@ -219,7 +219,7 @@ export const updateArticle = async (id, data) => {
     });
   } catch (err) {
     // If Prisma client is older than schema and rejects metaTitle/SEO fields, fallback gracefully
-    if (err.message && (err.message.includes("Unknown argument 'metaTitle'") || err.message.includes("Unknown argument"))) {
+    if (err.message && (err.message.includes("isIndexed") || err.message.includes("metaTitle") || err.message.includes("Unknown argument") || err.message.includes("Unknown column"))) {
       const fallbackData = { ...sanitizedData };
       delete fallbackData.metaTitle;
       delete fallbackData.metaDescription;
