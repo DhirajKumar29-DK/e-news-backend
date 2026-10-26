@@ -139,6 +139,9 @@ function findBestTokenFit(tokens, startTokenIdx, width, height, cols, fontSize, 
       high = mid - 1;
     }
   }
+  if (bestFit === startTokenIdx && targetH >= lineH && startTokenIdx < tokens.length) {
+    bestFit = startTokenIdx + 1;
+  }
   return bestFit;
 }
 
@@ -272,9 +275,17 @@ function renderSlot(rawS, targetContainer) {
       comp = typeof rawS.subStories === 'string' ? JSON.parse(rawS.subStories) : rawS.subStories;
     } catch (_) {}
   }
-  const hasPrecomputed = Boolean(comp && typeof comp === 'object' && (comp.text1 !== undefined || comp.textNoImg !== undefined || comp.text2 !== undefined || comp.text3 !== undefined));
+  const hasTextInComp = Boolean(
+    comp && typeof comp === 'object' &&
+    (
+      (typeof comp.text1 === 'string' && comp.text1.trim().length > 0) ||
+      (typeof comp.text3 === 'string' && comp.text3.trim().length > 0) ||
+      (typeof comp.textNoImg === 'string' && comp.textNoImg.trim().length > 0)
+    )
+  );
+  const hasPrecomputed = hasTextInComp;
 
-  const summaryText = decodeHtmlEntities(rawS.summary || rawS.contentText || '');
+  const summaryText = decodeHtmlEntities(rawS.summary || rawS.contentText || (rawS.content?.body) || (rawS.content?.summary) || '');
   const tokens = sliceHtmlTokens(summaryText);
 
   if (!hasImage) {
