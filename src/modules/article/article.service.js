@@ -54,7 +54,7 @@ export const createArticle = async (data) => {
       data: createPayload
     });
   } catch (err) {
-    if (err.message && err.message.includes("Unknown argument 'metaTitle'")) {
+    if (err.message && (err.message.includes("Unknown argument 'metaTitle'") || err.message.includes("Unknown argument 'isIndexed'") || err.message.includes("Unknown argument"))) {
       delete createPayload.metaTitle;
       delete createPayload.metaDescription;
       delete createPayload.metaKeywords;
