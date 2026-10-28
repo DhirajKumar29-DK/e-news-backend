@@ -36,7 +36,6 @@ export const uploadArticleImage = multer({
   fileFilter
 });
 
-
 // --- VIDEO UPLOAD SUPPORT ---
 const videoUploadDir = path.join(process.cwd(), 'public', 'uploads', 'videos');
 if (!fs.existsSync(videoUploadDir)) {
@@ -70,4 +69,28 @@ export const uploadVideoFile = multer({
   storage: videoStorage,
   limits: { fileSize: 5 * 1024 * 1024 * 1024 } /* 5 GB max upload limit */, // 250 MB
   fileFilter: videoFileFilter
+});
+
+// --- ADVERTISEMENT BANNER UPLOAD SUPPORT ---
+const adUploadDir = path.join(process.cwd(), 'public', 'uploads', 'ads');
+if (!fs.existsSync(adUploadDir)) {
+  fs.mkdirSync(adUploadDir, { recursive: true });
+}
+
+const adStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, adUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const cleanName = path.basename(file.originalname, ext).replace(/[^\w-]/g, '');
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e6);
+    cb(null, `${cleanName || 'ad'}-${uniqueSuffix}${ext}`);
+  }
+});
+
+export const uploadAdImage = multer({
+  storage: adStorage,
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter
 });

@@ -281,3 +281,23 @@ model Category {
 
   @@map("categories")
 }
+
+model Advertisement {
+  id          String    @id @default(uuid())
+  title       String
+  slot        String    // HOMEPAGE_TOP, ARTICLE_INLINE, ARTICLE_SIDEBAR
+  type        String    @default("IMAGE") // IMAGE, SCRIPT
+  imageUrl    String?   @db.Text
+  targetUrl   String?   @db.Text
+  scriptCode  String?   @db.Text
+  startDate   DateTime?
+  endDate     DateTime?
+  isActive    Boolean   @default(true)
+  viewsCount  Int       @default(0)
+  clicksCount Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([slot, isActive])
+  @@map("advertisements")
+}

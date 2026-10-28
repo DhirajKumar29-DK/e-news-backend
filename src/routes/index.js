@@ -8,6 +8,7 @@ import horoscopeRoutes from '../modules/horoscope/horoscope.routes.js';
 import weatherRoutes from '../modules/weather/weather.routes.js';
 import categoryRoutes from '../modules/category/category.routes.js';
 import cricketRoutes from '../modules/cricket/cricket.routes.js';
+import adRoutes from '../modules/ad/ad.routes.js';
 
 const router = Router();
 
@@ -29,5 +30,6 @@ router.use('/horoscope', horoscopeRoutes);
 router.use('/weather', weatherRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/cricket', cricketRoutes);
+router.use('/ads', adRoutes);
 
 export default router;
