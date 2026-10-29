@@ -2,93 +2,36 @@ import { Router } from 'express';
 import * as authController from './auth.controller.js';
 import { validate } from '../../middleware/validate.middleware.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
-import { loginSchema, changePasswordSchema } from './auth.validation.js';
+import { uploadIdProof } from '../../middleware/upload.middleware.js';
+import {
+  loginSchema,
+  reporterRegisterSchema,
+  changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema
+} from './auth.validation.js';
 
 const router = Router();
 
-/**
- * @swagger
- * tags:
- *   name: Auth
- *   description: Admin Authentication & Password Management
- */
-
-/**
- * @swagger
- * /auth/login:
- *   post:
- *     summary: Admin Login
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 example: admin@enews.com
- *               password:
- *                 type: string
- *                 example: Admin@123456
- *     responses:
- *       200:
- *         description: Login successful, returns JWT token and Admin profile
- *       401:
- *         description: Invalid credentials
- */
+// 1. Universal Login (Admin & Reporter)
 router.post('/login', validate(loginSchema), authController.login);
 
-/**
- * @swagger
- * /auth/me:
- *   get:
- *     summary: Get Logged-in Admin Profile
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Profile data retrieved successfully
- *       401:
- *         description: Unauthorized / Missing or invalid token
- */
+// 2. Public Reporter Registration
+router.post('/register', validate(reporterRegisterSchema), authController.registerReporter);
+
+// 3. Upload ID Proof / Press Card Document (Multipart)
+router.post('/upload-id-proof', uploadIdProof.single('idProof'), authController.uploadIdProofDoc);
+
+// 4. Authenticated Profile Details
 router.get('/me', authMiddleware(), authController.getMe);
 
-/**
- * @swagger
- * /auth/change-password:
- *   post:
- *     summary: Change Admin Password
- *     tags: [Auth]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - oldPassword
- *               - newPassword
- *             properties:
- *               oldPassword:
- *                 type: string
- *                 example: Admin@123456
- *               newPassword:
- *                 type: string
- *                 example: NewPassword@1234
- *     responses:
- *       200:
- *         description: Password updated successfully
- *       400:
- *         description: Incorrect old password or validation error
- */
+// 5. Change Password (Authenticated)
 router.post('/change-password', authMiddleware(), validate(changePasswordSchema), authController.changePassword);
+
+// 6. Forgot Password (Public request reset token)
+router.post('/forgot-password', validate(forgotPasswordSchema), authController.forgotPassword);
+
+// 7. Reset Password (Public with token)
+router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
 
 export default router;

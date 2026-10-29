@@ -37,6 +37,7 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.4.0",
+    "nodemailer": "^10.2.1",
     "pdf-lib": "^1.17.1",
     "puppeteer": "^25.11.0",
     "swagger-jsdoc": "^6.2.8",

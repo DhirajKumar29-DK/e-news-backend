@@ -94,3 +94,38 @@ export const uploadAdImage = multer({
   limits: { fileSize: 15 * 1024 * 1024 },
   fileFilter
 });
+
+// --- REPORTER IDENTITY PROOF UPLOAD (MANDATORY AADHAAR / PRESS CARD) ---
+const idProofUploadDir = path.join(process.cwd(), 'public', 'uploads', 'id_proofs');
+if (!fs.existsSync(idProofUploadDir)) {
+  fs.mkdirSync(idProofUploadDir, { recursive: true });
+}
+
+const idProofStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, idProofUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const cleanName = path.basename(file.originalname, ext).replace(/[^\w-]/g, '');
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e6);
+    cb(null, `idproof-${cleanName || 'doc'}-${uniqueSuffix}${ext}`);
+  }
+});
+
+const idProofFileFilter = (req, file, cb) => {
+  const allowedExts = /jpeg|jpg|png|webp|pdf/;
+  const extname = allowedExts.test(path.extname(file.originalname).toLowerCase());
+  const allowedMime = file.mimetype === 'application/pdf' || file.mimetype.startsWith('image/');
+
+  if (extname && allowedMime) {
+    return cb(null, true);
+  }
+  cb(new Error('Only image files (JPG, PNG, WebP) or PDF documents are allowed for ID proof!'));
+};
+
+export const uploadIdProof = multer({
+  storage: idProofStorage,
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max
+  fileFilter: idProofFileFilter
+});

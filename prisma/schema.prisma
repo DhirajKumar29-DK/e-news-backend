@@ -9,15 +9,32 @@ generator client {
 }
 
 model User {
-  id        String    @id @default(uuid())
-  name      String
-  email     String    @unique
-  password  String
-  role      String    @default("ADMIN")
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id                   String    @id @default(uuid())
+  name                 String
+  email                String    @unique
+  password             String
+  phone                String?
+  role                 String    @default("ADMIN") // "ADMIN", "REPORTER"
+  status               String    @default("APPROVED") // "PENDING", "APPROVED", "REJECTED", "SUSPENDED"
+  city                 String?
+  district             String?
+  state                String?
+  bio                  String?   @db.Text
+  profileImage         String?   @db.LongText
+  idProofUrl           String?   @db.LongText // Mandatory Aadhaar or Press Card
+  idProofType          String?   // "AADHAAR", "PRESS_ID", "VOTER_ID"
+  idProofNumber        String?
+  rejectionReason      String?   @db.Text
+  preferredCategories  String?   // Comma-separated or JSON string
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+  articles             Article[] @relation("ReporterArticles")
+  deletedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
+  @@index([role])
+  @@index([status])
   @@map("users")
 }
 
@@ -156,11 +173,17 @@ model Article {
   viewsCount      Int       @default(0)
   likesCount      Int       @default(0)
   readTimeMinutes Int       @default(3)
-    metaTitle       String?   @db.Text
-    metaDescription String?   @db.Text
-    metaKeywords    String?   @db.Text
-    canonicalUrl    String?   @db.Text
-    isIndexed       Boolean   @default(true)
+  metaTitle       String?   @db.Text
+  metaDescription String?   @db.Text
+  metaKeywords    String?   @db.Text
+  canonicalUrl    String?   @db.Text
+  isIndexed       Boolean   @default(true)
+  reporterId      String?
+  reporter        User?     @relation("ReporterArticles", fields: [reporterId], references: [id], onDelete: SetNull)
+  adminFeedback   String?   @db.Text
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  reviewedBy      String?
   publishedAt     DateTime  @default(now())
   deletedAt       DateTime?
   createdAt       DateTime  @default(now())
@@ -168,6 +191,7 @@ model Article {
 
   @@index([category])
   @@index([status])
+  @@index([reporterId])
   @@index([deletedAt])
   @@map("articles")
 }
