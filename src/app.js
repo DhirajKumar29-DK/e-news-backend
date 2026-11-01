@@ -52,8 +52,9 @@ app.use('/uploads', (req, res, next) => {
 // Swagger Documentation UI
 setupSwagger(app);
 
-// Mount API Routes
+// Mount API Routes (Both /api/v1 and /api for full compatibility)
 app.use('/api/v1', routes);
+app.use('/api', routes);
 
 // 404 Route Handler
 app.use((req, res) => {

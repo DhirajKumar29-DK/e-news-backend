@@ -1,0 +1,5 @@
+{
+  "migratedToDatabase": true,
+  "migratedAt": "2026-10-31T12:19:44.350Z",
+  "notice": "Primary AI settings are now permanently stored in MySQL database u963801592_NTPLenews."
+}

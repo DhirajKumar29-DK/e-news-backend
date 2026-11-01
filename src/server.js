@@ -11,6 +11,11 @@ const startServer = async () => {
     console.log(`🔗 Health Check: http://localhost:${env.PORT}/api/v1/health`);
     console.log(`📖 API Docs:     http://localhost:${env.PORT}/api-docs`);
 
+    // Ensure robust keep-alive timeouts for proxies (Next.js rewrites, Nginx, Cloudflare)
+    server.timeout = 120000;
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 66000;
+
     // Background YouTube Auto-Sync Worker (checks every 5 minutes silently)
     setTimeout(async () => {
       try {

@@ -325,3 +325,50 @@ model Advertisement {
   @@index([slot, isActive])
   @@map("advertisements")
 }
+
+
+model AiSystemSetting {
+  id                    String   @id @default(uuid())
+  activeProvider        String   @default("gemini")
+  enabled               Boolean  @default(true)
+  temperature           Float    @default(0.7)
+  maxTokens             Int      @default(4096)
+  topP                  Float    @default(0.95)
+  languageOverride      String   @default("hi")
+  customWelcomeGreeting String?  @db.Text
+  updatedAt             DateTime @updatedAt
+
+  @@map("ai_system_settings")
+}
+
+model AiProviderConfig {
+  id               String    @id @default(uuid())
+  provider         String    @unique
+  encryptedApiKey  String?   @db.Text
+  selectedModel    String?
+  cachedModels     String?   @db.LongText
+  isVerified       Boolean   @default(false)
+  lastTestedAt     DateTime?
+  lastLatencyMs    Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("ai_provider_configs")
+}
+
+
+model AiDailyUsage {
+  id               String   @id @default(uuid())
+  provider         String
+  date             String
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  totalTokens      Int      @default(0)
+  requestCount     Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([provider, date])
+  @@index([date])
+  @@map("ai_daily_usages")
+}

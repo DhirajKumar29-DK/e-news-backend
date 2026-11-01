@@ -21,6 +21,8 @@ coverage/
 # OS Files
 .DS_Store
 Thumbs.db
+*.backup
+config/*.backup
 
 # Generated Uploads (Dynamic PDFs & WebP Page Screenshots)
 public/uploads/*

@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import * as epaperController from './epaper.controller.js';
 import { validate } from '../../middleware/validate.middleware.js';
 import { saveSlotSchema, publishPaperSchema, addPageSchema, generatePdfSchema, savePagesBulkSchema } from './epaper.validation.js';
@@ -28,5 +28,9 @@ router.post('/generate-pdf', validate(generatePdfSchema), epaperController.gener
 // AI News Editor Agent Endpoint (Conversational Gemini AI)
 router.post('/ai-agent', epaperController.aiAgent);
 router.post('/admin/ai-agent', epaperController.aiAgent);
+
+// AI Full Broadsheet Auto-Page Generator (Real-time News + Geometry)
+router.post('/admin/auto-generate-page', epaperController.autoGeneratePage);
+router.post('/auto-generate-page', epaperController.autoGeneratePage);
 
 export default router;

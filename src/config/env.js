@@ -16,5 +16,6 @@ export const env = {
   SMTP_USER: process.env.SMTP_USER || '',
   SMTP_PASS: process.env.SMTP_PASS || '',
   SMTP_FROM: process.env.SMTP_FROM || '"Vartiq Newsroom" <newsroom@vartiq.com>',
-  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000'
+  FRONTEND_URL: process.env.FRONTEND_URL || 'http://localhost:3000',
+  AI_SETTINGS_ENCRYPTION_KEY: process.env.AI_SETTINGS_ENCRYPTION_KEY || ''
 };

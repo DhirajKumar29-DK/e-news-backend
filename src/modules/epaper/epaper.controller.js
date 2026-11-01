@@ -1,6 +1,6 @@
 import { sendSuccess } from '../../utils/response.js';
 import * as epaperService from './epaper.service.js';
-import { processAiEditorPrompt } from './aiAgent.service.js';
+import { processAiEditorPrompt, generateFullPageNewspaper } from './aiAgent.service.js';
 
 export const getReaderPage = async (req, res, next) => {
   try {
@@ -168,7 +168,7 @@ export const getTtsAudio = async (req, res, next) => {
 
 export const aiAgent = async (req, res, next) => {
   try {
-    const { prompt, activeSlot, history, apiKey } = req.body;
+    const { prompt, activeSlot, history, apiKey, targetDate, date, editionCity } = req.body;
     if (!prompt || !prompt.trim()) {
       return res.status(400).json({ success: false, message: 'Prompt is required' });
     }
@@ -176,13 +176,38 @@ export const aiAgent = async (req, res, next) => {
       prompt: prompt.trim(),
       activeSlot,
       history,
-      customApiKey: apiKey
+      customApiKey: apiKey,
+      targetDate: targetDate || date,
+      editionCity: editionCity || 'पटना'
     });
     return sendSuccess(res, 'AI Editor response generated successfully', result);
   } catch (error) {
     return res.status(500).json({
       success: false,
       message: error.message || 'Failed to process AI prompt'
+    });
+  }
+};
+
+export const autoGeneratePage = async (req, res, next) => {
+  try {
+    const { prompt, topic, customPrompt, pageNumber, editionCity, slotCount, date, publishDate, archiveDate, apiKey } = req.body || {};
+    const result = await generateFullPageNewspaper({
+      prompt: prompt || customPrompt || topic || '',
+      topic: topic || '',
+      customPrompt: customPrompt || '',
+      pageNumber: Number(pageNumber) || 1,
+      editionCity: editionCity || 'पटना',
+      slotCount: slotCount ? Number(slotCount) : null,
+      date: date || publishDate || archiveDate || null,
+      customApiKey: apiKey
+    });
+    return sendSuccess(res, 'Broadsheet newspaper page generated successfully with real-time news', result);
+  } catch (error) {
+    console.error('[autoGeneratePage] Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to generate broadsheet page'
     });
   }
 };
