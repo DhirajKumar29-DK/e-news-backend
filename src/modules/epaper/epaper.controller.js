@@ -247,6 +247,24 @@ export const getAutomationJobHistory = async (req, res, next) => {
   }
 };
 
+export const deleteAutomationJobHistory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const deleteIssue = req.query.deleteIssue === 'true' || req.query.clearIssue === 'true';
+    if (!id) {
+      return res.status(400).json({ success: false, message: 'Job Log ID is required' });
+    }
+    const result = await epaperAutomationService.deleteAutomationJobLog(id, { deleteIssue });
+    if (!result) {
+      return res.status(404).json({ success: false, message: 'Job Log not found or already deleted' });
+    }
+    return sendSuccess(res, 'Job log deleted successfully', { id, deleteIssue });
+  } catch (error) {
+    console.error('[deleteAutomationJobHistory] Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 export const triggerManualAutomation = async (req, res, next) => {
   try {
     const { editionSlug, targetDate, apiKey } = req.body || {};

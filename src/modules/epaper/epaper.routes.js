@@ -37,6 +37,7 @@ router.post('/auto-generate-page', epaperController.autoGeneratePage);
 router.get('/admin/automation-config', epaperController.getAutomationConfig);
 router.post('/admin/automation-config', epaperController.updateAutomationConfig);
 router.get('/admin/automation-history', epaperController.getAutomationJobHistory);
+router.delete('/admin/automation-history/:id', epaperController.deleteAutomationJobHistory);
 router.post('/admin/automation-trigger', epaperController.triggerManualAutomation);
 
 export default router;

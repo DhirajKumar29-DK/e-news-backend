@@ -266,3 +266,24 @@ export async function getAutomationJobHistory(editionSlug = 'patna-main', limit 
   });
 }
 
+/**
+ * Delete a specific job execution log (and optionally clear the associated draft issue)
+ */
+export async function deleteAutomationJobLog(jobLogId, { deleteIssue = false } = {}) {
+  const log = await prisma.epaperScheduleJobLog.findUnique({ where: { id: jobLogId } });
+  if (!log) return false;
+
+  await prisma.epaperScheduleJobLog.delete({ where: { id: jobLogId } });
+
+  if (deleteIssue && log.targetDate) {
+    const targetDateObj = new Date(`${log.targetDate}T00:00:00.000Z`);
+    await prisma.paperIssue.deleteMany({
+      where: {
+        edition: { slug: log.editionSlug },
+        publishDate: targetDateObj
+      }
+    });
+  }
+  return true;
+}
+
