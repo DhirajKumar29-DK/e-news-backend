@@ -61,11 +61,15 @@ export function detectTopicFromPrompt(text = '') {
     .replace(/\b(bhai\s*mere|bhai|samjhe|kro|karo|add karo|add kro|bana do|bana|chahiye|plz|please|dalo|lagao|likho|dal do|laga do)\b/gi, ' ');
 
   // 1. Geographic Entity (City, District, State) MUST BE CHECKED FIRST!
-  // If user says "patna top news", "patna breaking news", "patna ki khabar",
+  // If user says "patna top news", "patna breaking news", "पटना ताज़ा समाचार",
   // it is ALWAYS CITY_LOCAL, never National Front Page!
-  const detectedCity = Object.keys(CITY_KEYWORDS).find(c =>
-    new RegExp(`\\b(${c}|${CITY_KEYWORDS[c]})\\b`, 'i').test(cleanT)
-  );
+  // Note: JavaScript \b does NOT work on Devanagari Unicode, so Devanagari uses exact string matching!
+  const detectedCity = Object.keys(CITY_KEYWORDS).find(c => {
+    const enMatch = new RegExp(`\\b${c}\\b`, 'i').test(cleanT);
+    const hiName = CITY_KEYWORDS[c];
+    const hiMatch = hiName ? cleanT.includes(hiName) : false;
+    return enMatch || hiMatch;
+  });
   if (detectedCity) {
     return 'CITY_LOCAL';
   }
@@ -509,9 +513,12 @@ function buildTargetedQueries(userPrompt = '', detectedTopic = 'GENERAL') {
   } else if (detectedTopic === 'TECH') {
     queries.push('टेक्नोलॉजी स्मार्टफोन गैजेट्स', 'आर्टिफिशियल इंटेलिजेंस तकनीक');
   } else if (detectedTopic === 'CITY_LOCAL') {
-    const matchedCityKey = Object.keys(CITY_KEYWORDS).find(c =>
-      new RegExp(`\\b(${c}|${CITY_KEYWORDS[c]})\\b`, 'i').test(p)
-    );
+    const matchedCityKey = Object.keys(CITY_KEYWORDS).find(c => {
+      const enMatch = new RegExp(`\\b${c}\\b`, 'i').test(p);
+      const hiName = CITY_KEYWORDS[c];
+      const hiMatch = hiName ? p.includes(hiName) : false;
+      return enMatch || hiMatch;
+    });
     const cityName = matchedCityKey ? CITY_KEYWORDS[matchedCityKey] : 'पटना';
     const cityKey = matchedCityKey || 'patna';
 
@@ -566,7 +573,9 @@ export function detectCitiesFromPrompt(promptText = '', requestedSlotCount = 5) 
   const matched = [];
 
   for (const [key, label] of Object.entries(CITY_KEYWORDS)) {
-    if (new RegExp(`\\b(${key}|${label})\\b`, 'i').test(t)) {
+    const enMatch = new RegExp(`\\b${key}\\b`, 'i').test(t);
+    const hiMatch = label ? t.includes(label) : false;
+    if (enMatch || hiMatch) {
       if (!matched.some(m => m.key === key)) {
         matched.push({ key, label });
       }

@@ -201,8 +201,9 @@ export function parseNaturalLanguagePagePrompt(rawPrompt = '', defaultSlotCount 
 
   let slotCount = defaultSlotCount;
   const slotMatch = text.match(/(\d{1,2})\s*(?:slots?|स्लॉट्स?|स्लॉट)/i) || 
-                    text.match(/(?:^|\s)(\d{1,2})\s*(?:news|खबरें|कहानियां)/i) ||
-                    text.match(/\btop\s*(\d{1,2})\b/i);
+                    text.match(/(?:^|\s)(\d{1,2})\s*(?:top\s+|breaking\s+)?(?:news|खबरें|कहानियां|stories|story|posts?|khabar|khabren|khabrein|badi\s*khabar)/i) ||
+                    text.match(/\btop\s*(\d{1,2})\b/i) ||
+                    text.match(/\b(\d{1,2})\s*(?:khabrein|khabren|khabar)\b/i);
   if (slotMatch) {
     const parsed = parseInt(slotMatch[1], 10);
     if (!isNaN(parsed) && parsed >= 1 && parsed <= 12) {
@@ -216,17 +217,19 @@ export function parseNaturalLanguagePagePrompt(rawPrompt = '', defaultSlotCount 
 
   let clean = text
     .replace(/\[[^\]]*\]/g, ' ')
-    .replace(/(\d{1,4})\s*(?:words?|शब्द|shabd|varn|slots?|स्लॉट्स?|स्लॉट|news|खबरें|stories)\b/gi, ' ')
+    // Strip page target directives: "2nd page k liye", "page 2 ke liye", "dusre page me", etc.
+    .replace(/\b(?:(?:1st|2nd|3rd|4th|\d+(?:st|nd|rd|th)?)\s*page|page\s*\d+|pehla\s*page|dusra\s*page|teesra\s*page|chautha\s*page)\b(?:\s*(?:k\s*liye|ke\s*liye|pe|par|me|mein))?/gi, ' ')
+    .replace(/(\d{1,4})\s*(?:words?|शब्द|shabd|varn|slots?|स्लॉट्स?|स्लॉट|news|खबरें|stories|khabar|khabren|khabrein)\b/gi, ' ')
     .replace(/\btop\s*\d{1,2}\b/gi, ' ')
-    .replace(/\b(?:add|create|generate|write|put|insert|bana\s*do|banao|bana|dalo|dal\s*do|lagao|laga\s*do|likho|likh\s*do|chahiye|lao|karo|kro|kar\s*do)\b/gi, ' ')
-    .replace(/\b(?:bhai\s*mere|bhai|samjhe|please|plz|zara|thoda|kripya)\b/gi, ' ')
-    .replace(/\b(?:k\s+jo\s+sabse|jo\s+sabse|sabse\s+top|wo\s+bas|\bwo\b|\bbas\b|\bsirf\b|only)\b/gi, ' ')
+    .replace(/\b(?:add|create|generate|write|put|insert|bana\s*do|banao|bana|dalo|dal\s*do|lagao|laga\s*do|likho|likh\s*do|chahiye|lao|karo|kro|kar\s*do|batao|karna\s*hai)\b/gi, ' ')
+    .replace(/\b(?:bhai\s*mere|bhai|samjhe|please|plz|zara|thoda|kripya|thik\s*hai|theek\s*hai|ok|okay)\b/gi, ' ')
+    .replace(/\b(?:k\s*liye|ke\s*liye|k\s+jo\s+sabse|ke\s+jo\s+sabse|jo\s+sabse|sabse\s+top|wo\s+bas|\bwo\b|\bbas\b|\bsirf\b|only)\b/gi, ' ')
     .replace(/\b(?:se\s*related|se\s*judi|se\s*jurhi|se\s*sambandhit|ke\s*baare\s*me|ke\s*bare\s*me|about|regarding)\b/gi, ' ')
     .replace(/\b(?:iss\s*page\s*me|page\s*me|page\s*par|page\s*pe)\b/gi, ' ')
     .replace(/\b(?:aaj\s*ki|aaj\s*ke|aaj\s*ka|today|kal\s*ki|kal\s*ka|yesterday)\b/gi, ' ')
     .replace(/\b(20\d\d)[-\/](0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])\b/gi, ' ')
     .replace(/(?:bada\s*lekh|in\s*depth|vishesh|deep\s*analysis)/gi, ' ')
-    .replace(/\b(?:in|with|for|me|mein|pe|par|ke\s*liye|ko|ki|ka|ke|hai|h|hain)\b/gi, ' ')
+    .replace(/\b(?:in|with|for|me|mein|pe|par|ko|ki|ka|ke|hai|h|hain)\b/gi, ' ')
     .replace(/[.,;!?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -238,12 +241,20 @@ export function parseNaturalLanguagePagePrompt(rawPrompt = '', defaultSlotCount 
   }
 
   // Authoritative broadsheet category alias for generic breaking news prompts
-  if (/^(?:top\s*)?breaking(?:\s*news)?(?:\s*in\s*india)?$/i.test(clean) || /^india\s+breaking$/i.test(clean)) {
+  if (/\b(?:patna|पटना)\b/i.test(clean)) {
+    if (/crime|police|murder|अपराध|पुलिस|हादसा/i.test(clean)) {
+      clean = 'पटना बिहार अपराध पुलिस ताज़ा समाचार';
+    } else if (/politics|chunav|election|राजनीति|चुनाव/i.test(clean)) {
+      clean = 'पटना बिहार राजनीति चुनाव ताज़ा समाचार';
+    } else if (/weather|barish|मौसम|बारिश/i.test(clean)) {
+      clean = 'पटना बिहार मौसम बारिश तापमान';
+    } else {
+      clean = 'पटना बिहार ताज़ा समाचार ब्रेकिंग न्यूज़';
+    }
+  } else if (/^(?:top\s*)?breaking(?:\s*news)?(?:\s*in\s*india)?$/i.test(clean) || /^india\s+breaking$/i.test(clean)) {
     clean = 'भारत की टॉप ब्रेकिंग न्यूज़';
   } else if (/^cricket(?:\s+news)?$/i.test(clean)) {
     clean = 'क्रिकेट खेल समाचार';
-  } else if (/^patna(?:\s+top)?(?:\s+news)?(?:\s+breaking)?$/i.test(clean)) {
-    clean = 'पटना बिहार ताज़ा समाचार';
   }
 
   return {
@@ -1148,45 +1159,51 @@ function assembleFinalSlots({
   });
 
   // Category Diversity & Journalistic Topic Sanitizer:
-  // Detect if all or majority of slots have the identical badge (e.g. all "पटना" or all identical),
-  // and dynamically assign the true journalistic category badge based on story headline content!
+  // ABSOLUTE BAN on stamping the city name (e.g. "पटना" or "Patna") or generic tags ("News", "Lead Story")
+  // on regular news cards! Automatically infer genuine journalistic categories from headlines & text.
   const allBadges = rawSlots.map(s => (s.categoryBadge || '').trim());
   const badgeCounts = {};
   allBadges.forEach(b => { if (b) badgeCounts[b] = (badgeCounts[b] || 0) + 1; });
   const isBadgeMonoculture = Object.values(badgeCounts).some(count => count >= Math.max(3, Math.floor(rawSlots.length * 0.5)));
 
-  if (isBadgeMonoculture) {
-    const JOURNALISTIC_CATEGORIES = requestedLang === 'en'
-      ? ['Crime & Safety', 'Politics', 'Weather', 'Development', 'Administration', 'Health', 'Education', 'Business', 'Sports']
-      : ['अपराध', 'राजनीति', 'मौसम', 'विकास', 'प्रशासन', 'स्वास्थ्य', 'शिक्षा', 'कारोबार', 'खेल'];
+  const CITY_OR_GENERIC_BADGE_REGEX = /^(?:पटना|patna|बिहार|bihar|दिल्ली|delhi|news|lead\s*story|लीड\s*स्टोरी|विशेष\s*रिपोर्ट|special\s*report)$/i;
+  const JOURNALISTIC_CATEGORIES = requestedLang === 'en'
+    ? ['Crime & Safety', 'Politics', 'Weather', 'Development', 'Administration', 'Health', 'Education', 'Business', 'Sports']
+    : ['अपराध', 'राजनीति', 'मौसम', 'विकास', 'प्रशासन', 'स्वास्थ्य', 'शिक्षा', 'कारोबार', 'खेल'];
 
-    rawSlots.forEach((slot, sIdx) => {
-      const hl = (slot.headline + ' ' + (slot.subHeadline || '')).toLowerCase();
+  rawSlots.forEach((slot, sIdx) => {
+    const rawBadge = (slot.categoryBadge || '').trim();
+    const isCityOrGeneric = CITY_OR_GENERIC_BADGE_REGEX.test(rawBadge) || rawBadge.toLowerCase() === (editionCity || '').toLowerCase();
+
+    if (isBadgeMonoculture || isCityOrGeneric || !rawBadge) {
+      const hl = (slot.headline + ' ' + (slot.subHeadline || '') + ' ' + (slot.contentText || '')).toLowerCase();
       let assignedBadge = '';
-      if (/हत्या|गोली|लूट|अपराध|गिरफ्तार|पुलिस|हादसा|वारदात|मौत|लाश|ट्रक|शराब|कुचल|पदक|crime|police|murder|arrest|accident|dead/i.test(hl)) {
+      if (/हत्या|गोली|लूट|अपराध|गिरफ्तार|पुलिस|हादसा|वारदात|मौत|लाश|ट्रक|शराब|कुचल|पदक|तस्कर|दक्षता पदक|crime|police|murder|arrest|accident|dead/i.test(hl)) {
         assignedBadge = requestedLang === 'en' ? 'Crime & Safety' : 'अपराध';
-      } else if (/चुनाव|राजनीति|पार्टी|विधायक|सांसद|सरकार|विपक्ष|मंत्री|राहुल|मोदी|नीतीश|तेजस्वी|जदयू|बयान|politics|election|minister|assembly|mp|mla/i.test(hl)) {
+      } else if (/चुनाव|राजनीति|पार्टी|विधायक|सांसद|सरकार|विपक्ष|मंत्री|राहुल|मोदी|नीतीश|तेजस्वी|जदयू|बयान|प्रेस|नोटिस|congress|bjp|aap|politics|election|minister|assembly|mp|mla/i.test(hl)) {
         assignedBadge = requestedLang === 'en' ? 'Politics' : 'राजनीति';
-      } else if (/मौसम|बारिश|ठंड|तापमान|कोहरा|धुंध|बादल|अलर्ट|हवा|चक्रवात|weather|rain|temperature|cold|fog|alert/i.test(hl)) {
+      } else if (/मौसम|बारिश|ठंड|तापमान|कोहरा|धुंध|बादल|अलर्ट|हवा|चक्रवात|आंधी|weather|rain|temperature|cold|fog|alert|cyclone/i.test(hl)) {
         assignedBadge = requestedLang === 'en' ? 'Weather' : 'मौसम';
-      } else if (/मेट्रो|सड़क|पुल|ट्रेन|बस|फ्लाईओवर|परिवहन|कॉरिडोर|एयरपोर्ट|विकास|स्पेशल बसें|metro|train|railway|highway|corridor|bus/i.test(hl)) {
+      } else if (/मेट्रो|सड़क|पुल|ट्रेन|बस|फ्लाईओवर|परिवहन|कॉरिडोर|एयरपोर्ट|विकास|स्पेशल बसें|बालू|नीलामी|सर्वे|drone|satellite|metro|train|railway|highway|corridor|bus/i.test(hl)) {
         assignedBadge = requestedLang === 'en' ? 'Development' : 'विकास';
       } else if (/अस्पताल|डेंगू|दवा|मरीज|स्वास्थ्य|डॉक्टर|इलाज|बीमारी|hospital|dengue|doctor|health|medical|medicine/i.test(hl)) {
         assignedBadge = requestedLang === 'en' ? 'Health' : 'स्वास्थ्य';
-      } else if (/निगम|कलेक्टर|डीएम|प्रशासन|आदेश|अधिसूचना|समीक्षा|बैठक|municipal|collector|dm|administration|order/i.test(hl)) {
+      } else if (/निगम|कलेक्टर|डीएम|प्रशासन|आदेश|अधिसूचना|समीक्षा|बैठक|बोर्ड|आयोग|municipal|collector|dm|administration|order/i.test(hl)) {
         assignedBadge = requestedLang === 'en' ? 'Administration' : 'प्रशासन';
-      } else if (/परीक्षा|स्कूल|कॉलेज|छात्र|एडमिट कार्ड|रिजल्ट|यूनिवर्सिटी|शिक्षा|exam|admit card|result|school|college|education|student/i.test(hl)) {
+      } else if (/परीक्षा|स्कूल|कॉलेज|छात्र|एडमिट कार्ड|डमी|रिजल्ट|यूनिवर्सिटी|शिक्षा|लाइब्रेरी|exam|admit card|result|school|college|education|student/i.test(hl)) {
         assignedBadge = requestedLang === 'en' ? 'Education' : 'शिक्षा';
       } else if (/शेयर|बाजार|सेंसेक्स|कारोबार|व्यापार|दुकान|मछली|दाम|भाव|उद्योग|आउटलेट|business|economy|market|sensex|stock|trade|price/i.test(hl)) {
         assignedBadge = requestedLang === 'en' ? 'Business' : 'कारोबार';
       } else if (/क्रिकेट|मैच|रन|विकेट|जीत|हार|खेल|टूर्नामेंट|ipl|cricket|football|sports|match|wicket/i.test(hl)) {
         assignedBadge = requestedLang === 'en' ? 'Sports' : 'खेल';
+      } else if (/रूस|यूक्रेन|इजरायल|गाजा|ट्रम्प|अमेरिका|चीन|विदेश|international|world|russia|ukraine|israel|trump/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'World' : 'विदेश';
       } else {
         assignedBadge = JOURNALISTIC_CATEGORIES[sIdx % JOURNALISTIC_CATEGORIES.length];
       }
       slot.categoryBadge = assignedBadge;
-    });
-  }
+    }
+  });
 
   return rawSlots;
 }
