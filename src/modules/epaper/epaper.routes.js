@@ -33,4 +33,9 @@ router.post('/admin/ai-agent', epaperController.aiAgent);
 router.post('/admin/auto-generate-page', epaperController.autoGeneratePage);
 router.post('/auto-generate-page', epaperController.autoGeneratePage);
 
+// AI E-Paper Automation & Scheduler Endpoints
+router.get('/admin/automation-config', epaperController.getAutomationConfig);
+router.post('/admin/automation-config', epaperController.updateAutomationConfig);
+router.get('/admin/automation-history', epaperController.getAutomationJobHistory);
+
 export default router;

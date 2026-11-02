@@ -372,3 +372,63 @@ model AiDailyUsage {
   @@index([date])
   @@map("ai_daily_usages")
 }
+
+// -------------------------------------------------------------
+// AI E-PAPER AUTOMATION & SCHEDULER MODELS
+// -------------------------------------------------------------
+
+model EpaperAutomationConfig {
+  id               String                 @id @default(uuid())
+  editionSlug      String                 @unique @default("patna-main")
+  isEnabled        Boolean                @default(false)
+  scheduleTime     String                 @default("05:00") // 24-hr format (05:00 AM)
+  timezone         String                 @default("Asia/Kolkata")
+  targetCity       String                 @default("पटना")
+  totalPages       Int                    @default(8)
+  autoPublish      Boolean                @default(false) // False = Hybrid (Admin Review Required)
+  blueprints       EpaperPageBlueprint[]
+  jobs             EpaperScheduleJobLog[]
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@map("epaper_automation_configs")
+}
+
+model EpaperPageBlueprint {
+  id          String                 @id @default(uuid())
+  configId    String
+  config      EpaperAutomationConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  pageNumber  Int                    // 1, 2, 3... up to 16
+  pageTitle   String                 // e.g. "मुख्य पृष्ठ", "बिहार और पटना", "खेल जगत"
+  headerType  String                 @default("folio") // "grand", "folio", "minimal"
+  targetTopic String                 // e.g. "पटना और बिहार के प्रमुख प्रशासनिक व विकास कार्य"
+  slotCount   Int                    @default(7) // 3 to 10 slots
+  order       Int                    @default(0)
+  isActive    Boolean                @default(true)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@unique([configId, pageNumber])
+  @@index([configId])
+  @@map("epaper_page_blueprints")
+}
+
+model EpaperScheduleJobLog {
+  id              String                  @id @default(uuid())
+  configId        String?
+  config          EpaperAutomationConfig? @relation(fields: [configId], references: [id], onDelete: SetNull)
+  editionSlug     String
+  targetDate      String                  // "YYYY-MM-DD"
+  status          String                  @default("SCHEDULED") // "SCHEDULED", "GENERATING", "AWAITING_APPROVAL", "PUBLISHED", "FAILED"
+  pagesGenerated  Int                     @default(0)
+  totalPages      Int                     @default(0)
+  errorMessage    String?                 @db.Text
+  executionLog    String?                 @db.LongText
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+
+  @@index([editionSlug, targetDate])
+  @@map("epaper_schedule_job_logs")
+}

@@ -1,6 +1,7 @@
 import { sendSuccess } from '../../utils/response.js';
 import * as epaperService from './epaper.service.js';
 import { processAiEditorPrompt, generateFullPageNewspaper } from './aiAgent.service.js';
+import * as epaperAutomationService from './epaperAutomation.service.js';
 
 export const getReaderPage = async (req, res, next) => {
   try {
@@ -209,5 +210,39 @@ export const autoGeneratePage = async (req, res, next) => {
       success: false,
       message: error.message || 'Failed to generate broadsheet page'
     });
+  }
+};
+
+export const getAutomationConfig = async (req, res, next) => {
+  try {
+    const edition = req.query.edition || req.query.editionSlug || 'patna-main';
+    const config = await epaperAutomationService.getOrCreateAutomationConfig(edition);
+    return sendSuccess(res, 'Automation configuration retrieved successfully', config);
+  } catch (error) {
+    console.error('[getAutomationConfig] Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const updateAutomationConfig = async (req, res, next) => {
+  try {
+    const edition = req.body.editionSlug || req.query.edition || 'patna-main';
+    const updated = await epaperAutomationService.updateAutomationConfig(edition, req.body);
+    return sendSuccess(res, 'Automation configuration updated successfully', updated);
+  } catch (error) {
+    console.error('[updateAutomationConfig] Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getAutomationJobHistory = async (req, res, next) => {
+  try {
+    const edition = req.query.edition || req.query.editionSlug || 'patna-main';
+    const limit = Number(req.query.limit) || 20;
+    const history = await epaperAutomationService.getAutomationJobHistory(edition, limit);
+    return sendSuccess(res, 'Automation job history retrieved successfully', history);
+  } catch (error) {
+    console.error('[getAutomationJobHistory] Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
