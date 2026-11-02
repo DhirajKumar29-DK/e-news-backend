@@ -215,21 +215,24 @@ export function parseNaturalLanguagePagePrompt(rawPrompt = '', defaultSlotCount 
   }
 
   let clean = text
-    .replace(/\b(?:with|for|in|me|mein|pe|par|ke liye)\s*(?=\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट|news|खबरें|कहानियां)\b)/gi, '')
-    .replace(/\b\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट|news|खबरें|कहानियां)\b/gi, '')
-    .replace(/\btop\s*\d{1,2}\b/gi, '')
-    .replace(/(?:se related|se judi|se jurhi|se sambandhit)/gi, '')
-    .replace(/(?:iss page me|iss page pe|page me|page par|page pe)/gi, '')
-    .replace(/\b(?:k\s+jo\s+sabse|jo\s+sabse|sabse\s+top|wo\s+bas|\bwo\b|\bbas\b|\bsirf\b)\b/gi, '')
-    .replace(/(?:add karo|add kro|kro|bhai|samjhe|bana do|banao|lagao|dalo|likho|chahiye|set karo|karo|kare|please|plz)/gi, '')
-    .replace(/(?:aaj ki|aaj ke|aaj ka|today|kal ki|yesterday)/gi, '')
-    .replace(/\b(20\d\d)[-\/](0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])\b/gi, '')
-    .replace(/(?:bada lekh|in depth|vishesh|deep analysis)/gi, '')
+    .replace(/\[(?:MANDATORY|LAYOUT|DIRECTIVE)[^\]]*\]/gi, ' ')
+    .replace(/\b(?:with|for|in|me|mein|pe|par|ke\s*liye)\s*(?=\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट|news|खबरें|कहानियां)\b)/gi, ' ')
+    .replace(/\b(?:add|insert|create|generate|put|write|chahiye|lao|bana|banao|dalo|lagao|karo|kro|likho)\b/gi, ' ')
+    .replace(/\b\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट|news|खबरें|कहानियां|stories)\b/gi, ' ')
+    .replace(/\btop\s*\d{1,2}\b/gi, ' ')
+    .replace(/\b(?:se\s*related|se\s*judi|se\s*jurhi|se\s*sambandhit)\b/gi, ' ')
+    .replace(/\b(?:iss\s*page\s*me|iss\s*page\s*pe|page\s*me|page\s*par|page\s*pe)\b/gi, ' ')
+    .replace(/\b(?:k\s+jo\s+sabse|jo\s+sabse|sabse\s+top|wo\s+bas|\bwo\b|\bbas\b|\bsirf\b)\b/gi, ' ')
+    .replace(/\b(?:add\s*karo|add\s*kro|kro|bhai|samjhe|bana\s*do|banao|lagao|dalo|likho|chahiye|set\s*karo|karo|kare|please|plz)\b/gi, ' ')
+    .replace(/\b(?:aaj\s*ki|aaj\s*ke|aaj\s*ka|today|kal\s*ki|yesterday)\b/gi, ' ')
+    .replace(/\b(20\d\d)[-\/](0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])\b/gi, ' ')
+    .replace(/(?:bada\s*lekh|in\s*depth|vishesh|deep\s*analysis)/gi, ' ')
     .replace(/\b(?:me|pe|par|ki|ka|ke|ko|aur|ya|and|or|with|for|hai|h|hain)\b/gi, ' ')
+    .replace(/[.,;!?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  clean = clean.replace(/\b(?:with|for|me|mein|pe|par|ke liye)\s*$/gi, '').trim();
+  clean = clean.replace(/\b(?:with|for|me|mein|pe|par|ke\s*liye)\s*$/gi, '').trim();
 
   if (clean.length < 2) {
     clean = text.replace(/\b\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट)\b/gi, '').trim();
@@ -736,16 +739,22 @@ export function resolveEditorialStoryImage({ topic = '', headline = '', category
   }
 
   const combined = `${topic} ${headline} ${category}`.toLowerCase();
+  const hlLower = (headline || '').toLowerCase();
 
   let pool = EDITORIAL_STOCK_PHOTOS.GENERAL;
-  if (/बाजार|शेयर|कारोबार|सेंसेक्स|निफ्टी|व्यापार|बिजनेस|रुपया|बैंक|मार्केट|निवेश|मुनाफा|घाटा|bfsi|उछाल|गिरावट/i.test(combined)) {
-    pool = EDITORIAL_STOCK_PHOTOS.BUSINESS;
-  } else if (/क्रिकेट|मैच|खेल|खिलाड़ी|टूर्नामेंट|फाइनल|जीत|हॉकी|फुटबॉल|टेनिस/i.test(combined)) {
-    pool = EDITORIAL_STOCK_PHOTOS.SPORTS;
-  } else if (/चुनाव|सियासत|राजनीति|पार्टी|विधायक|सांसद|सरकार|नेता|विपक्ष|एमएलसी|प्रत्याशी/i.test(combined)) {
-    pool = EDITORIAL_STOCK_PHOTOS.POLITICS;
-  } else if (/पुलिस|अपराध|गिरफ्तार|हत्या|लूट|हादसा|मौत|वारदात|शव|गोली|जांच|मुकदमा|फरार/i.test(combined)) {
+
+  // 1. Strict Priority: Crime, Disaster & Tragedy in headline ALWAYS overrides generic slot category
+  if (/पुलिस|अपराध|गिरफ्तार|हत्या|लूट|हादसा|मौत|वारदात|शव|शवों|लापता|गोली|जांच|मुकदमा|फरार|तनाव|हिरासत|पीड़ितों|मुठभेड़|विमान\s*हादसा|दुर्घटना/i.test(hlLower) ||
+      /पुलिस|अपराध|गिरफ्तार|हत्या|लूट|हादसा|मौत|वारदात|शव|गोली/i.test(combined)) {
     pool = EDITORIAL_STOCK_PHOTOS.CRIME;
+  } else if (/मौसम|बारिश|चक्रवात|तूफान|सर्दी|गर्मी|तापमान|मानसून|ओलावृष्टि|बाढ़|अलर्ट/i.test(hlLower)) {
+    pool = EDITORIAL_STOCK_PHOTOS.WEATHER;
+  } else if (/क्रिकेट|मैच|खेल|खिलाड़ी|टूर्नामेंट|फाइनल|जीत|हॉकी|फुटबॉल|टेनिस/i.test(hlLower)) {
+    pool = EDITORIAL_STOCK_PHOTOS.SPORTS;
+  } else if (/चुनाव|सियासत|राजनीति|पार्टी|विधायक|सांसद|सरकार|नेता|विपक्ष|एमएलसी|प्रत्याशी|संसद|सुप्रीम\s*कोर्ट|सीजेआई|राहुल|मोदी|शाह/i.test(hlLower)) {
+    pool = EDITORIAL_STOCK_PHOTOS.POLITICS;
+  } else if (/बाजार|शेयर|कारोबार|सेंसेक्स|निफ्टी|व्यापार|बिजनेस|रुपया|बैंक|मार्केट|निवेश|मुनाफा|घाटा|bfsi|उछाल|गिरावट|सोना|चांदी/i.test(combined)) {
+    pool = EDITORIAL_STOCK_PHOTOS.BUSINESS;
   } else if (/छठ|पूजा|मेला|घाट|गंगा|मंदिर|त्योहार|पर्व|उत्सव|कार्तिक|पूर्णिमा|श्रद्धालु/i.test(combined)) {
     pool = EDITORIAL_STOCK_PHOTOS.FESTIVAL;
   } else if (/पुल|सड़क|मेट्रो|निर्माण|विकास|योजना|स्टेशन|रेलवे|परियोजना|उद्घाटन/i.test(combined)) {

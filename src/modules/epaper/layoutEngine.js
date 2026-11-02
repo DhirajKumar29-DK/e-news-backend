@@ -1141,21 +1141,20 @@ export function get10SlotLayout(pageNumber = 1) {
   const isPage1 = Number(pageNumber) === 1;
   const topY = isPage1 ? BROADSHEET_CONFIG.PAGE_1_TOP_OFFSET : BROADSHEET_CONFIG.PAGE_N_TOP_OFFSET;
 
-  const tier1H = isPage1 ? 480 : 510;
-  const tier2H = isPage1 ? 520 : 540;
-  const tier3H = isPage1 ? 740 : 780;
+  // Balanced 4-Tier Modular Broadsheet Grid (Minimum Slot Width: 424px - Zero Skinny Noodles!)
+  // Printable Canvas Width: 1312px (x: 16 to 1328)
+  const tier1H = isPage1 ? 430 : 450; // Tier 1: Lead Hero (3 cols) + Top Spotlight (1 col) [2 slots]
+  const tier2H = isPage1 ? 430 : 450; // Tier 2: 3 Mid Ground Report Columns [3 slots]
+  const tier3H = isPage1 ? 420 : 440; // Tier 3: 2 Wide Feature Story Cards (2 cols each) [2 slots]
+  const tier4H = isPage1 ? 500 : 540; // Tier 4: 3 Bottom Anchor Stories [3 slots]
 
   const y1 = topY;
   const y2 = y1 + tier1H + BROADSHEET_CONFIG.GUTTER;
   const y3 = y2 + tier2H + BROADSHEET_CONFIG.GUTTER;
-
-  // Tier 3: 5 columns across bottom (margins 16 left + 16 right = 1312 width)
-  // 5 slots: width 248 each, gap 18 (16 + 248 + 18 + 248 + 18 + 248 + 18 + 248 + 18 + 248 + 16 = 1344px)
-  const bW = 248;
-  const bG = 18;
+  const y4 = y3 + tier3H + BROADSHEET_CONFIG.GUTTER;
 
   return [
-    // Tier 1: Lead Hero + Top Sidebar (2 slots)
+    // TIER 1: 2 SLOTS (Lead Hero Banner + Top Right Sidebar)
     {
       slotIndex: 0,
       slotBadge: 'Slot 1: मुख्य लीड (सुपर बैनर)',
@@ -1171,7 +1170,7 @@ export function get10SlotLayout(pageNumber = 1) {
       imageAlignment: 'Center Wrap',
       imageVertAlign: 'top',
       imageWidth: 440,
-      imageHeight: 230,
+      imageHeight: 220,
       headlineFontSize: 28,
       subHeadlineFontSize: 16,
       summaryFontSize: 14,
@@ -1197,11 +1196,11 @@ export function get10SlotLayout(pageNumber = 1) {
       headlineFontSize: 22,
       subHeadlineFontSize: 15,
       summaryFontSize: 14,
-      targetWordCount: 250,
+      targetWordCount: 260,
       editorialRole: 'TOP_SIDEBAR'
     },
 
-    // Tier 2: 3 Columns across Middle (3 slots)
+    // TIER 2: 3 SLOTS (Mid-Page 3 Balanced Columns: 424px + 424px + 432px)
     {
       slotIndex: 2,
       slotBadge: 'Slot 3: मध्य बायाँ कॉलम',
@@ -1216,12 +1215,12 @@ export function get10SlotLayout(pageNumber = 1) {
       imageWrapMode: 'auto',
       imageAlignment: 'Left',
       imageVertAlign: 'top',
-      imageWidth: 160,
-      imageHeight: 120,
+      imageWidth: 180,
+      imageHeight: 130,
       headlineFontSize: 20,
       subHeadlineFontSize: 14,
-      summaryFontSize: 13,
-      targetWordCount: 220,
+      summaryFontSize: 13.5,
+      targetWordCount: 240,
       editorialRole: 'MID_LEFT'
     },
     {
@@ -1238,18 +1237,18 @@ export function get10SlotLayout(pageNumber = 1) {
       imageWrapMode: 'auto',
       imageAlignment: 'Right',
       imageVertAlign: 'top',
-      imageWidth: 160,
-      imageHeight: 120,
+      imageWidth: 180,
+      imageHeight: 130,
       headlineFontSize: 20,
       subHeadlineFontSize: 14,
-      summaryFontSize: 13,
-      targetWordCount: 220,
+      summaryFontSize: 13.5,
+      targetWordCount: 240,
       editorialRole: 'MID_CENTER'
     },
     {
       slotIndex: 4,
       slotBadge: 'Slot 5: मध्य दायाँ कॉलम',
-      categoryBadge: 'विशेष विश्लेषण',
+      categoryBadge: 'राजनीति',
       x: 896,
       y: y2,
       width: 432,
@@ -1260,125 +1259,127 @@ export function get10SlotLayout(pageNumber = 1) {
       imageWrapMode: 'auto',
       imageAlignment: 'Left',
       imageVertAlign: 'top',
-      imageWidth: 160,
-      imageHeight: 120,
+      imageWidth: 180,
+      imageHeight: 130,
       headlineFontSize: 20,
       subHeadlineFontSize: 14,
-      summaryFontSize: 13,
-      targetWordCount: 220,
+      summaryFontSize: 13.5,
+      targetWordCount: 240,
       editorialRole: 'MID_RIGHT'
     },
 
-    // Tier 3: 5 Compact Columns across Bottom (5 slots)
+    // TIER 3: 2 SLOTS (2 Wide Magazine Feature Cards: 648px + 648px)
     {
       slotIndex: 5,
-      slotBadge: 'Slot 6: निचला कॉलम 1',
-      categoryBadge: 'राष्ट्रीय',
+      slotBadge: 'Slot 6: फ़ीचर स्टोरी (बायाँ)',
+      categoryBadge: 'अर्थव्यवस्था',
       x: 16,
       y: y3,
-      width: bW,
+      width: 648,
       height: tier3H,
-      columnsCount: 1,
-      columnGap: 10,
-      showColumnDivider: false,
+      columnsCount: 2,
+      columnGap: 16,
+      showColumnDivider: true,
       imageWrapMode: 'auto',
-      imageAlignment: 'Center Wrap',
+      imageAlignment: 'Right',
       imageVertAlign: 'top',
-      imageWidth: 140,
-      imageHeight: 110,
-      headlineFontSize: 17,
-      subHeadlineFontSize: 12.5,
-      summaryFontSize: 12,
-      targetWordCount: 180,
-      editorialRole: 'BOTTOM_COL_1'
+      imageWidth: 240,
+      imageHeight: 150,
+      headlineFontSize: 22,
+      subHeadlineFontSize: 14.5,
+      summaryFontSize: 13.5,
+      targetWordCount: 340,
+      editorialRole: 'FEATURE_LEFT'
     },
     {
       slotIndex: 6,
-      slotBadge: 'Slot 7: निचला कॉलम 2',
-      categoryBadge: 'राज्य',
-      x: 16 + (bW + bG),
+      slotBadge: 'Slot 7: फ़ीचर स्टोरी (दायाँ)',
+      categoryBadge: 'विशेष विश्लेषण',
+      x: 680,
       y: y3,
-      width: bW,
+      width: 648,
       height: tier3H,
-      columnsCount: 1,
-      columnGap: 10,
-      showColumnDivider: false,
+      columnsCount: 2,
+      columnGap: 16,
+      showColumnDivider: true,
       imageWrapMode: 'auto',
-      imageAlignment: 'Center Wrap',
+      imageAlignment: 'Right',
       imageVertAlign: 'top',
-      imageWidth: 140,
-      imageHeight: 110,
-      headlineFontSize: 17,
-      subHeadlineFontSize: 12.5,
-      summaryFontSize: 12,
-      targetWordCount: 180,
-      editorialRole: 'BOTTOM_COL_2'
+      imageWidth: 240,
+      imageHeight: 150,
+      headlineFontSize: 22,
+      subHeadlineFontSize: 14.5,
+      summaryFontSize: 13.5,
+      targetWordCount: 340,
+      editorialRole: 'FEATURE_RIGHT'
     },
+
+    // TIER 4: 3 SLOTS (Bottom Anchor Columns: 424px + 424px + 432px)
     {
       slotIndex: 7,
-      slotBadge: 'Slot 8: निचला कॉलम 3',
-      categoryBadge: 'राजनीति',
-      x: 16 + (bW + bG) * 2,
-      y: y3,
-      width: bW,
-      height: tier3H,
+      slotBadge: 'Slot 8: बॉटम बायाँ एंकर',
+      categoryBadge: 'राज्य',
+      x: 16,
+      y: y4,
+      width: 424,
+      height: tier4H,
       columnsCount: 1,
-      columnGap: 10,
+      columnGap: 14,
       showColumnDivider: false,
       imageWrapMode: 'auto',
       imageAlignment: 'Center Wrap',
       imageVertAlign: 'top',
-      imageWidth: 140,
-      imageHeight: 110,
-      headlineFontSize: 17,
-      subHeadlineFontSize: 12.5,
-      summaryFontSize: 12,
-      targetWordCount: 180,
-      editorialRole: 'BOTTOM_COL_3'
+      imageWidth: 180,
+      imageHeight: 130,
+      headlineFontSize: 20,
+      subHeadlineFontSize: 14,
+      summaryFontSize: 13.5,
+      targetWordCount: 260,
+      editorialRole: 'BOTTOM_LEFT'
     },
     {
       slotIndex: 8,
-      slotBadge: 'Slot 9: निचला कॉलम 4',
-      categoryBadge: 'कारोबार',
-      x: 16 + (bW + bG) * 3,
-      y: y3,
-      width: bW,
-      height: tier3H,
+      slotBadge: 'Slot 9: बॉटम केंद्र एंकर',
+      categoryBadge: 'देश',
+      x: 456,
+      y: y4,
+      width: 424,
+      height: tier4H,
       columnsCount: 1,
-      columnGap: 10,
+      columnGap: 14,
       showColumnDivider: false,
       imageWrapMode: 'auto',
       imageAlignment: 'Center Wrap',
       imageVertAlign: 'top',
-      imageWidth: 140,
-      imageHeight: 110,
-      headlineFontSize: 17,
-      subHeadlineFontSize: 12.5,
-      summaryFontSize: 12,
-      targetWordCount: 180,
-      editorialRole: 'BOTTOM_COL_4'
+      imageWidth: 180,
+      imageHeight: 130,
+      headlineFontSize: 20,
+      subHeadlineFontSize: 14,
+      summaryFontSize: 13.5,
+      targetWordCount: 260,
+      editorialRole: 'BOTTOM_CENTER'
     },
     {
       slotIndex: 9,
-      slotBadge: 'Slot 10: निचला कॉलम 5',
-      categoryBadge: 'विविध',
-      x: 16 + (bW + bG) * 4,
-      y: y3,
-      width: bW,
-      height: tier3H,
+      slotBadge: 'Slot 10: बॉटम दायाँ एंकर',
+      categoryBadge: 'विदेश',
+      x: 896,
+      y: y4,
+      width: 432,
+      height: tier4H,
       columnsCount: 1,
-      columnGap: 10,
+      columnGap: 14,
       showColumnDivider: false,
       imageWrapMode: 'auto',
       imageAlignment: 'Center Wrap',
       imageVertAlign: 'top',
-      imageWidth: 140,
-      imageHeight: 110,
-      headlineFontSize: 17,
-      subHeadlineFontSize: 12.5,
-      summaryFontSize: 12,
-      targetWordCount: 180,
-      editorialRole: 'BOTTOM_COL_5'
+      imageWidth: 180,
+      imageHeight: 130,
+      headlineFontSize: 20,
+      subHeadlineFontSize: 14,
+      summaryFontSize: 13.5,
+      targetWordCount: 260,
+      editorialRole: 'BOTTOM_RIGHT'
     }
   ];
 }

@@ -279,23 +279,28 @@ export function calculateStorySimilarity(titleA = '', titleB = '') {
  */
 async function fetchRssItems(query, targetDate) {
   try {
-    let effectiveQuery = query;
-    const isExplicitDate = targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate);
-    const todayIso = new Date().toISOString().split('T')[0];
-
-    if (isExplicitDate && targetDate !== todayIso) {
-      const d = new Date(targetDate);
-      const next = new Date(d);
-      next.setDate(next.getDate() + 1);
-      const prev = new Date(d);
-      prev.setDate(prev.getDate() - 1);
-      effectiveQuery += `+after:${prev.toISOString().split('T')[0]}+before:${next.toISOString().split('T')[0]}`;
+    let url = '';
+    if (query.startsWith('https://')) {
+      url = query;
     } else {
-      effectiveQuery += '+when:24h';
-    }
+      let effectiveQuery = query;
+      const isExplicitDate = targetDate && /^\d{4}-\d{2}-\d{2}$/.test(targetDate);
+      const todayIso = new Date().toISOString().split('T')[0];
 
-    const encoded = encodeURIComponent(effectiveQuery).replace(/%2B/g, '+');
-    const url = `https://news.google.com/rss/search?q=${encoded}&hl=hi&gl=IN&ceid=IN:hi`;
+      if (isExplicitDate && targetDate !== todayIso) {
+        const d = new Date(targetDate);
+        const next = new Date(d);
+        next.setDate(next.getDate() + 1);
+        const prev = new Date(d);
+        prev.setDate(prev.getDate() - 1);
+        effectiveQuery += `+after:${prev.toISOString().split('T')[0]}+before:${next.toISOString().split('T')[0]}`;
+      } else {
+        effectiveQuery += '+when:24h';
+      }
+
+      const encoded = encodeURIComponent(effectiveQuery).replace(/%2B/g, '+');
+      url = `https://news.google.com/rss/search?q=${encoded}&hl=hi&gl=IN&ceid=IN:hi`;
+    }
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 4500);
@@ -337,13 +342,20 @@ async function fetchRssItems(query, targetDate) {
       let headline = rawTitle;
       let sourceName = sourceMatch ? decodeXmlEntities(sourceMatch[1]) : '';
 
-      const dashIdx = rawTitle.lastIndexOf(' - ');
+      const dashIdx = headline.lastIndexOf(' - ');
       if (dashIdx > 20) {
-        headline = rawTitle.substring(0, dashIdx).trim();
         if (!sourceName) {
-          sourceName = rawTitle.substring(dashIdx + 3).trim();
+          sourceName = headline.substring(dashIdx + 3).trim();
         }
+        headline = headline.substring(0, dashIdx).trim();
       }
+
+      // Aggressively strip competitor prefixes, suffixes, and publisher tags
+      headline = headline
+        .replace(/^(?:भास्कर अपडेट्स|दैनिक भास्कर|अपडेट्स?|अपडेट\s*::|ब्रेकिंग\s*::|बड़ी ख़बर|लाइव अपडेट्स?|Breaking News|Live Updates)\s*[:：|–—-]\s*/gi, '')
+        .replace(/\s*[-–—|]\s*(?:Dainik\s*Bhaskar|Bhaskar|Jagran|Dainik\s*Jagran|Amar\s*Ujala|Hindustan|Live\s*Hindustan|AajTak|Aaj\s*Tak|NDTV|NDTV\s*India|ABP\s*News|ABP|News18|TV9|BBC|BBC\s*Hindi|Navbharat\s*Times|NBT|Zee\s*News|India\s*TV|India\s*Today|The\s*Hindu|Indian\s*Express)[^$]*$/gi, '')
+        .replace(/\s+(?:AajTak|Hindustan|Dainik Bhaskar|Bhaskar|Jagran|Amar Ujala|NDTV|ABP News|News18|BBC)\s*$/gi, '')
+        .trim();
 
       // Extract real supporting facts/summary from RSS description snippet
       let snippet = '';
@@ -358,8 +370,8 @@ async function fetchRssItems(query, targetDate) {
         }
       }
 
-      // STRICT FILTER: Discard TV Live stream ads, vertical streaming apps, generic roundups, and astrology
-      const JUNK_PROMOTIONAL_REGEX = /(?:live\s*tv|लाइव\s*टीवी|live\s*stream|लाइव\s*स्ट्रीम|vertical\s*format|वर्टिकल|school\s*assembly|स्कूल\s*असेंबली|शाम\s*की\s*बड़ी\s*खबरें|सुबह\s*की\s*बड़ी\s*खबरें|पढ़ें.*शाम\s*की|पढ़ें.*सुबह\s*की|rashifal|राशिफल|पंचांग|horoscope|kundali|superfast\s*100|nonstop\s*100|speed\s*news|न्यूज\s*फटाफट|फटाफट\s*खबरें|top\s*10\s*headlines|video:\s*|देखें\s*वीडियो|newscast\s*at|watch\s*hindi\s*breaking|free\s*live\s*tv)/i;
+      // STRICT FILTER: Discard TV Live stream ads, vertical streaming apps, generic roundups, animal testing, and astrology
+      const JUNK_PROMOTIONAL_REGEX = /(?:live\s*tv|लाइव\s*टीवी|live\s*stream|लाइव\s*स्ट्रीम|vertical\s*format|वर्टिकल|school\s*assembly|स्कूल\s*असेंबली|शाम\s*की\s*बड़ी\s*खबरें|सुबह\s*की\s*बड़ी\s*खबरें|पढ़ें.*शाम\s*की|पढ़ें.*सुबह\s*की|rashifal|राशिफल|पंचांग|horoscope|kundali|superfast\s*100|nonstop\s*100|speed\s*news|न्यूज\s*फटाफट|फटाफट\s*खबरें|top\s*10\s*headlines|video:\s*|देखें\s*वीडियो|newscast\s*at|watch\s*hindi\s*breaking|free\s*live\s*tv|खरगोश|जानवरों\s*पर\s*परीक्षण|animal\s*testing|शौकीन|वायरल\s*वीडियो|viral\s*video|देसी\s*जुगाड़|अजब\s*गजब)/i;
 
       if (JUNK_PROMOTIONAL_REGEX.test(headline) || JUNK_PROMOTIONAL_REGEX.test(snippet)) {
         continue;
@@ -491,9 +503,9 @@ function buildTargetedQueries(userPrompt = '', detectedTopic = 'GENERAL') {
     queries.push('अंतरराष्ट्रीय दुनिया विदेश समाचार', 'वैश्विक कूटनीति अमेरिका रूस');
   } else if (detectedTopic === 'FRONT_PAGE') {
     queries.push(
-      'भारत देश की बड़ी खबरें राष्ट्रीय ब्रेकिंग',
-      'राष्ट्रीय राजनीति सुप्रीम कोर्ट संसद चुनाव बड़ी खबरें',
-      'देश के राज्यों की मुख्य बड़ी घटनाएं समाचार'
+      'https://news.google.com/rss?hl=hi&gl=IN&ceid=IN:hi',
+      'https://news.google.com/rss/headlines/section/topic/NATION?hl=hi&gl=IN&ceid=IN:hi',
+      'भारत देश की बड़ी खबरें राष्ट्रीय ब्रेकिंग'
     );
   } else {
     // General or Regional: Clean userPrompt to prevent conversational text like "wo bas" skewing RSS
