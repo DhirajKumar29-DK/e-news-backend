@@ -126,6 +126,8 @@ export function buildPageFragment(opts, pageObj, pIdx) {
     const pageBadgeColor = headerCfg.pageBadgeColor || '#ffffff';
 
     let centerTitleHtml = '';
+    const resolvedTitle = (headerCfg.title || pageObj.sectionTitle || pageObj.title || '').replace(/\s*\([^)]*\)/g, '').trim();
+
     if (headerCfg.twoToneTitle && headerCfg.titlePrefix) {
       const pColor = headerCfg.titleColorPrefix || '#475569';
       const mColor = headerCfg.titleColorMain || '#c51c24';
@@ -133,11 +135,20 @@ export function buildPageFragment(opts, pageObj, pIdx) {
         <span style="color: ${pColor}; font-size: ${headerCfg.titleFontSize || 38}px; font-weight: 900; font-family: 'Mukta', 'Noto Serif Devanagari', 'Poppins', 'Inter', sans-serif; line-height: 1;">${headerCfg.titlePrefix}</span>
         <span style="color: ${mColor}; font-size: ${headerCfg.titleFontSize || 38}px; font-weight: 900; font-family: 'Mukta', 'Noto Serif Devanagari', 'Poppins', 'Inter', sans-serif; line-height: 1;">${headerCfg.titleMain || cityText}</span>
       `;
-    } else if (headerCfg.title) {
-      const tColor = headerCfg.titleColor || headerCfg.titleColorMain || '#0f172a';
-      centerTitleHtml = `
-        <span style="color: ${tColor}; font-size: ${headerCfg.titleFontSize || 38}px; font-weight: 900; font-family: 'Mukta', 'Noto Serif Devanagari', 'Poppins', 'Inter', sans-serif; line-height: 1;">${headerCfg.title}</span>
-      `;
+    } else if (resolvedTitle && !/^page\s*\d+$/i.test(resolvedTitle) && resolvedTitle !== 'Lead Cover') {
+      if (resolvedTitle.includes(' ')) {
+        const spaceIdx = resolvedTitle.indexOf(' ');
+        const pfx = resolvedTitle.substring(0, spaceIdx).trim();
+        const main = resolvedTitle.substring(spaceIdx + 1).trim();
+        centerTitleHtml = `
+          <span style="color: #475569; font-size: 38px; font-weight: 900; font-family: 'Mukta', 'Noto Serif Devanagari', 'Poppins', 'Inter', sans-serif; line-height: 1;">${pfx}</span>
+          <span style="color: #c51c24; font-size: 38px; font-weight: 900; font-family: 'Mukta', 'Noto Serif Devanagari', 'Poppins', 'Inter', sans-serif; line-height: 1;">${main}</span>
+        `;
+      } else {
+        centerTitleHtml = `
+          <span style="color: #c51c24; font-size: 38px; font-weight: 900; font-family: 'Mukta', 'Noto Serif Devanagari', 'Poppins', 'Inter', sans-serif; line-height: 1;">${resolvedTitle}</span>
+        `;
+      }
     } else {
       centerTitleHtml = `
         <span style="color: #475569; font-size: 38px; font-weight: 900; font-family: 'Mukta', 'Noto Serif Devanagari', 'Poppins', 'Inter', sans-serif; line-height: 1;">अपना</span>
