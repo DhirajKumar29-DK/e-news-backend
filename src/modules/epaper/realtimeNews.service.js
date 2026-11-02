@@ -54,45 +54,60 @@ const CITY_KEYWORDS = {
 };
 
 export function detectTopicFromPrompt(text = '') {
-  // Strip conversational fillers like "bhai", "samjhe", "kro", "karo", "add kro", etc.
-  // This strictly prevents "bhai" from being misidentified as "ai" (Tech)!
+  // Strip conversational fillers in Hinglish, Hindi, and English like "bhai", "samjhe", "kro", "karo", "add kro", etc.
+  // Word boundaries prevent "bhai" from being misidentified as "ai" (Tech)!
   const cleanT = (text || '')
     .toLowerCase()
-    .replace(/\b(bhai|samjhe|kro|karo|add karo|add kro|bana do|chahiye|plz|please)\b/gi, ' ');
+    .replace(/\b(bhai\s*mere|bhai|samjhe|kro|karo|add karo|add kro|bana do|bana|chahiye|plz|please|dalo|lagao|likho|dal do|laga do)\b/gi, ' ');
 
-  if (/\b(cricket|football|boxing|hockey|tennis|badminton|kabaddi|kushti|dangal|sports?|match|fifa|ipl|wpl)\b|क्रिकेट|फुटबॉल|बॉक्सिंग|खेल|मैच|हॉकी|टेनिस|बैडमिंटन|कबड्डी|कुश्ती|दंगल|दौड़|एथलीट|गोल्ड मेडल/i.test(cleanT)) {
-    return 'SPORTS';
-  }
-  if (/\b(share market|stock market|sensex|nifty|business|economy|trading|sebi|rbi|rupee|gold|silver)\b|कारोबार|शेयर बाजार|सेंसेक्स|निफ्टी|व्यापार|बिजनेस|रुपया|सोना|चांदी|मार्केट|मुनाफा|घाटा/i.test(cleanT)) {
-    return 'BUSINESS';
-  }
-  if (/\b(bollywood|cinema|movies?|films?|actors?|actress|trailer|ott|entertainment)\b|सिनेमा|फिल्म|बॉलीवुड|मनोरंजन|अभिनेता|अभिनेत्री|कलाकार/i.test(cleanT)) {
-    return 'ENTERTAINMENT';
-  }
-  // Word boundary \b is mandatory so words like "bhai" never match "ai"
-  if (/\b(technology|tech|ai|artificial intelligence|smartphones?|gadgets?|cyber)\b|तकनीक|गैजेट|मोबाइल|स्मार्टफोन|रोबोट/i.test(cleanT)) {
-    return 'TECH';
-  }
-  if (/\b(world|international|foreign|america|china|russia|israel|iran|ukraine)\b|विदेश|अंतरराष्ट्रीय|दुनिया|वैश्विक/i.test(cleanT)) {
-    return 'WORLD';
-  }
-  if (/\b(politics|elections?|political|party|rahul|modi|bjp|congress|nda|yadav|nitish|chunav)\b|चुनाव|राजनीति|सियासत|पार्टी|विधायक|सांसद|सरकार|विपक्ष|रैली|जनसभा/i.test(cleanT)) {
-    return 'POLITICS';
-  }
-  if (/\b(police|crimes?|murders?|arrests?|accidents?|deaths?)\b|अपराध|पुलिस|हत्या|लूट|गिरफ्तार|हादसा|मौत|वारदात|शव|गोली|जांच|मुकदमा/i.test(cleanT)) {
-    return 'CRIME';
-  }
-
-  if (/\b(top news|breaking news|top breaking|top india|india states|states news|national news|desh ki|badi khabrein|top \d{1,2}|breaking)\b|ब्रेकिंग|ताज़ा खबर|बड़ी खबरें|प्रमुख समाचार|मुख्य समाचार/i.test(cleanT)) {
-    return 'FRONT_PAGE';
-  }
-
-  // Detect specific city or district
+  // 1. Geographic Entity (City, District, State) MUST BE CHECKED FIRST!
+  // If user says "patna top news", "patna breaking news", "patna ki khabar",
+  // it is ALWAYS CITY_LOCAL, never National Front Page!
   const detectedCity = Object.keys(CITY_KEYWORDS).find(c =>
     new RegExp(`\\b(${c}|${CITY_KEYWORDS[c]})\\b`, 'i').test(cleanT)
   );
   if (detectedCity) {
     return 'CITY_LOCAL';
+  }
+
+  // 2. Sports (Cricket, Football, Boxing, etc.)
+  if (/\b(cricket|football|boxing|hockey|tennis|badminton|kabaddi|kushti|dangal|sports?|match|fifa|ipl|wpl)\b|क्रिकेट|फुटबॉल|बॉक्सिंग|खेल|मैच|हॉकी|टेनिस|बैडमिंटन|कबड्डी|कुश्ती|दंगल|दौड़|एथलीट|गोल्ड मेडल/i.test(cleanT)) {
+    return 'SPORTS';
+  }
+
+  // 3. Business & Economy
+  if (/\b(share market|stock market|sensex|nifty|business|economy|trading|sebi|rbi|rupee|gold|silver)\b|कारोबार|शेयर बाजार|सेंसेक्स|निफ्टी|व्यापार|बिजनेस|रुपया|सोना|चांदी|मार्केट|मुनाफा|घाटा|अर्थव्यवस्था/i.test(cleanT)) {
+    return 'BUSINESS';
+  }
+
+  // 4. Entertainment & Cinema
+  if (/\b(bollywood|cinema|movies?|films?|actors?|actress|trailer|ott|entertainment)\b|सिनेमा|फिल्म|बॉलीवुड|मनोरंजन|अभिनेता|अभिनेत्री|कलाकार/i.test(cleanT)) {
+    return 'ENTERTAINMENT';
+  }
+
+  // 5. Tech & Gadgets (Word boundary \b strictly enforced so "bhai" never matches "ai")
+  if (/\b(technology|tech|smartphones?|gadgets?|cyber|isro|artificial intelligence)\b|\bai\b|तकनीक|गैजेट|मोबाइल|स्मार्टफोन|रोबोट/i.test(cleanT)) {
+    return 'TECH';
+  }
+
+  // 6. World & Foreign Affairs
+  if (/\b(world|international|foreign|america|china|russia|israel|iran|ukraine)\b|विदेश|अंतरराष्ट्रीय|दुनिया|वैश्विक/i.test(cleanT)) {
+    return 'WORLD';
+  }
+
+  // 7. Politics & Elections (National)
+  if (/\b(politics|elections?|political|party|rahul|modi|bjp|congress|nda|yadav|nitish|chunav|parliament|sansad)\b|चुनाव|राजनीति|सियासत|पार्टी|विधायक|सांसद|सरकार|विपक्ष|रैली|जनसभा/i.test(cleanT)) {
+    return 'POLITICS';
+  }
+
+  // 8. Crime & Legal
+  if (/\b(police|crimes?|murders?|arrests?|accidents?|deaths?|court|cbi|ed|nia)\b|अपराध|पुलिस|हत्या|लूट|गिरफ्तार|हादसा|मौत|वारदात|शव|गोली|जांच|मुकदमा/i.test(cleanT)) {
+    return 'CRIME';
+  }
+
+  // 9. National Front Page / Top Headlines
+  if (/\b(top news|breaking news|top breaking|top india|india states|states news|national news|desh ki|badi khabrein|top \d{1,2}|breaking)\b|ब्रेकिंग|ताज़ा खबर|बड़ी खबरें|प्रमुख समाचार|मुख्य समाचार/i.test(cleanT)) {
+    return 'FRONT_PAGE';
   }
 
   return 'GENERAL';
@@ -498,7 +513,33 @@ function buildTargetedQueries(userPrompt = '', detectedTopic = 'GENERAL') {
       new RegExp(`\\b(${c}|${CITY_KEYWORDS[c]})\\b`, 'i').test(p)
     );
     const cityName = matchedCityKey ? CITY_KEYWORDS[matchedCityKey] : 'पटना';
-    queries.push(`${cityName} आज की ताज़ा ख़बरें समाचार`, `${cityName} नगर निगम विकास योजना स्थानीय`);
+    const cityKey = matchedCityKey || 'patna';
+
+    const biharCities = new Set([
+      'patna', 'bihar', 'hajipur', 'vaishali', 'gaya', 'muzaffarpur',
+      'bhagalpur', 'chhapra', 'siwan', 'gopalganj', 'darbhanga',
+      'samastipur', 'madhubani', 'munger', 'saharsa', 'purnia',
+      'begusarai', 'motihari', 'bettiah', 'buxar', 'ara', 'bhojpur',
+      'sasaram', 'nalanda', 'rajgir', 'nawada', 'aurangabad', 'jamui',
+      'katihar', 'kishanganj', 'araria', 'supaul'
+    ]);
+
+    const stateAffiliation = biharCities.has(cityKey) ? 'बिहार' : '';
+    const stateAffiliationEn = biharCities.has(cityKey) ? 'bihar' : '';
+
+    if (/crime|police|murder|arrest|accident|अपराध|पुलिस|हादसा|गिरफ्तार/i.test(p)) {
+      queries.push(`${cityName} अपराध पुलिस हादसा`, `${cityKey} crime`);
+    } else if (/politics|vidhansabha|chunav|election|राजनीति|विधानसभा|चुनाव/i.test(p)) {
+      queries.push(`${cityName} राजनीति चुनाव विधानसभा`, `${cityKey} politics`);
+    } else if (/weather|barish|mausam|thand|मौसम|बारिश|ठंड|तापमान/i.test(p)) {
+      queries.push(`${cityName} मौसम बारिश तापमान`, `${cityKey} weather`);
+    } else {
+      queries.push(
+        `${cityName} ${stateAffiliation}`.trim(),
+        `${cityKey} ${stateAffiliationEn}`.trim(),
+        `${cityName} अपराध विकास प्रशासन`
+      );
+    }
   } else if (detectedTopic === 'WORLD') {
     queries.push('अंतरराष्ट्रीय दुनिया विदेश समाचार', 'वैश्विक कूटनीति अमेरिका रूस');
   } else if (detectedTopic === 'FRONT_PAGE') {

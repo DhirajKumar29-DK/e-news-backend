@@ -215,32 +215,35 @@ export function parseNaturalLanguagePagePrompt(rawPrompt = '', defaultSlotCount 
   }
 
   let clean = text
-    .replace(/\[(?:MANDATORY|LAYOUT|DIRECTIVE)[^\]]*\]/gi, ' ')
-    .replace(/\b(?:with|for|in|me|mein|pe|par|ke\s*liye)\s*(?=\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट|news|खबरें|कहानियां)\b)/gi, ' ')
-    .replace(/\b(?:add|insert|create|generate|put|write|chahiye|lao|bana|banao|dalo|lagao|karo|kro|likho)\b/gi, ' ')
-    .replace(/\b\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट|news|खबरें|कहानियां|stories)\b/gi, ' ')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/(\d{1,4})\s*(?:words?|शब्द|shabd|varn|slots?|स्लॉट्स?|स्लॉट|news|खबरें|stories)\b/gi, ' ')
     .replace(/\btop\s*\d{1,2}\b/gi, ' ')
-    .replace(/\b(?:se\s*related|se\s*judi|se\s*jurhi|se\s*sambandhit)\b/gi, ' ')
-    .replace(/\b(?:iss\s*page\s*me|iss\s*page\s*pe|page\s*me|page\s*par|page\s*pe)\b/gi, ' ')
-    .replace(/\b(?:k\s+jo\s+sabse|jo\s+sabse|sabse\s+top|wo\s+bas|\bwo\b|\bbas\b|\bsirf\b)\b/gi, ' ')
-    .replace(/\b(?:add\s*karo|add\s*kro|kro|bhai|samjhe|bana\s*do|banao|lagao|dalo|likho|chahiye|set\s*karo|karo|kare|please|plz)\b/gi, ' ')
-    .replace(/\b(?:aaj\s*ki|aaj\s*ke|aaj\s*ka|today|kal\s*ki|yesterday)\b/gi, ' ')
+    .replace(/\b(?:add|create|generate|write|put|insert|bana\s*do|banao|bana|dalo|dal\s*do|lagao|laga\s*do|likho|likh\s*do|chahiye|lao|karo|kro|kar\s*do)\b/gi, ' ')
+    .replace(/\b(?:bhai\s*mere|bhai|samjhe|please|plz|zara|thoda|kripya)\b/gi, ' ')
+    .replace(/\b(?:k\s+jo\s+sabse|jo\s+sabse|sabse\s+top|wo\s+bas|\bwo\b|\bbas\b|\bsirf\b|only)\b/gi, ' ')
+    .replace(/\b(?:se\s*related|se\s*judi|se\s*jurhi|se\s*sambandhit|ke\s*baare\s*me|ke\s*bare\s*me|about|regarding)\b/gi, ' ')
+    .replace(/\b(?:iss\s*page\s*me|page\s*me|page\s*par|page\s*pe)\b/gi, ' ')
+    .replace(/\b(?:aaj\s*ki|aaj\s*ke|aaj\s*ka|today|kal\s*ki|kal\s*ka|yesterday)\b/gi, ' ')
     .replace(/\b(20\d\d)[-\/](0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])\b/gi, ' ')
     .replace(/(?:bada\s*lekh|in\s*depth|vishesh|deep\s*analysis)/gi, ' ')
-    .replace(/\b(?:me|pe|par|ki|ka|ke|ko|aur|ya|and|or|with|for|hai|h|hain)\b/gi, ' ')
+    .replace(/\b(?:in|with|for|me|mein|pe|par|ke\s*liye|ko|ki|ka|ke|hai|h|hain)\b/gi, ' ')
     .replace(/[.,;!?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 
-  clean = clean.replace(/\b(?:with|for|me|mein|pe|par|ke\s*liye)\s*$/gi, '').trim();
+  clean = clean.replace(/\b(?:with|for|me|mein|pe|par|ke\s*liye|and|aur|hai|h)\s*$/gi, '').trim();
 
   if (clean.length < 2) {
     clean = text.replace(/\b\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट)\b/gi, '').trim();
   }
 
   // Authoritative broadsheet category alias for generic breaking news prompts
-  if (/^(?:top\s*)?breaking\s*news(?:\s*in\s*india)?$/i.test(clean)) {
+  if (/^(?:top\s*)?breaking(?:\s*news)?(?:\s*in\s*india)?$/i.test(clean) || /^india\s+breaking$/i.test(clean)) {
     clean = 'भारत की टॉप ब्रेकिंग न्यूज़';
+  } else if (/^cricket(?:\s+news)?$/i.test(clean)) {
+    clean = 'क्रिकेट खेल समाचार';
+  } else if (/^patna(?:\s+top)?(?:\s+news)?(?:\s+breaking)?$/i.test(clean)) {
+    clean = 'पटना बिहार ताज़ा समाचार';
   }
 
   return {
@@ -262,16 +265,16 @@ export function extractConversationalNewsQuery(rawText = '') {
   // 1. Strip frontend-injected bracket directives: [MANDATORY WORD COUNT DIRECTIVE: ...], [LAYOUT DIRECTIVE: ...]
   let text = String(rawText).replace(/\[[^\]]*\]/g, ' ').trim();
 
-  // 2. Strip conversational command verbs in English, Hindi, and Hinglish
+  // 2. Strip conversational command verbs and filler in English, Hindi, and Hinglish
   text = text
     .replace(/\b(?:add|write|give|create|post|publish|generate|tell|fetch|show)\s+news\s+(?:about|on|for|regarding)?\b/gi, ' ')
     .replace(/\b(?:news|khabar|samachar|report|article|story)\s+(?:about|on|par|pe|ke baare me|ke bare me|se related|se judi)?\b/gi, ' ')
-    .replace(/\b(?:in|with|for|me|mein|shabdon me|shabd me)?\s*\d{1,4}\s*(?:words?|शब्द|shabd|varn)\b/gi, ' ')
+    .replace(/\b(?:\d{1,4}\s*)?(?:words?|शब्द|shabd|varn)\b/gi, ' ')
     .replace(/\b(?:in|with|for|me|mein|pe|par|ke liye)\s*(?=\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट|news|खबरें)\b)/gi, ' ')
     .replace(/\b\d{1,2}\s*(?:slots?|स्लॉट्स?|स्लॉट)\b/gi, ' ')
     .replace(/\btop\s*\d{1,2}\b/gi, ' ')
     .replace(/\b(?:aaj\s*ki|aaj\s*ke|aaj\s*ka|today|kal\s*ki|yesterday)\b/gi, ' ')
-    .replace(/\b(?:add\s*karo|add\s*kro|bana\s*do|banao|dalo|lagao|likho|likh\s*do|chahiye|set\s*karo|karo|kro|bhai|samjhe|please|plz)\b/gi, ' ')
+    .replace(/\b(?:add\s*karo|add\s*kro|bana\s*do|banao|dalo|lagao|likho|likh\s*do|chahiye|set\s*karo|karo|kro|bhai\s*mere|bhai|samjhe|please|plz)\b/gi, ' ')
     .replace(/\b(?:se\s*related|se\s*judi|se\s*jurhi|se\s*sambandhit)\b/gi, ' ')
     .replace(/\b(?:iss\s*page\s*me|page\s*me|page\s*par|page\s*pe)\b/gi, ' ')
     .replace(/\b(?:bada\s*lekh|in\s*depth|vishesh|deep\s*analysis)\b/gi, ' ')
@@ -426,7 +429,7 @@ export async function processAiEditorPrompt({
   let realtimeStories = [];
 
   if (!isProofreadDraftOnly) {
-    const rawUserOnly = prompt.replace(/\[(?:MANDATORY|LAYOUT|DIRECTIVE)[^\]]*\]/gi, '').trim();
+    const rawUserOnly = prompt.replace(/\[[^\]]*\]/g, ' ').replace(/\s+/g, ' ').trim();
     const cleanSearchTopic = extractConversationalNewsQuery(rawUserOnly);
     const searchQuery = cleanSearchTopic || rawUserOnly.replace(/[^\w\s\u0900-\u097F]/gi, ' ').trim();
     const isLatestNewsIntent = /(?:aaj|taza|tazi|taaza|latest|breaking|news|khabar|match|score|update|batao|likho|likh|chhapra|patna|bihar|cricket|market|rally|ramleela|delhi)/i.test(rawUserOnly);
@@ -441,8 +444,9 @@ export async function processAiEditorPrompt({
 
       // Strict Anti-Hallucination Guard: If latest news was requested but 0 verified stories exist in last 24h, return explicit no-news result
       if (isLatestNewsIntent && (!realtimeStories || realtimeStories.length === 0)) {
+        const displayTopic = cleanSearchTopic || rawUserOnly || 'ताज़ा समाचार';
         return {
-          reply: `क्षमा करें, आपके द्वारा मांगे गए विषय ("${cleanSearchTopic || 'ताज़ा समाचार'}") पर पिछले 24 घंटों में कोई सत्यापित ताज़ा समाचार नहीं मिला। कृपया किसी अन्य विषय या कीवर्ड के साथ प्रयास करें।`,
+          reply: `क्षमा करें, आपके द्वारा मांगे गए विषय ("${displayTopic}") पर पिछले 24 घंटों में कोई सत्यापित ताज़ा समाचार नहीं मिला। कृपया किसी अन्य विषय या कीवर्ड के साथ प्रयास करें।`,
           fullText: '',
           parsedNews: null,
           hasVerifiedNews: false,
@@ -880,7 +884,22 @@ CRITICAL EDITORIAL DESK RULES:
    - Every headline, subheadline, and article body MUST read as if written by a seasoned, award-winning human senior editor.
    - ABSOLUTE PROHIBITION ON AI / ROBOTIC PHRASES: Do NOT use phrases like "आइए जानते हैं", "आज के इस दौर में", "यह ध्यान रखना जरूरी है", "संक्षेप में कहें तो", "निष्कर्षतः", "जैसा कि हम जानते हैं", "आज हम चर्चा करेंगे", or generic AI summaries.
    - Write with punchy active verbs, dignified vocabulary, objective reporting, and clear facts (who, what, when, where, why).
-   - Clean, professional text. Separate paragraphs cleanly with double newlines (\\n\\n). No HTML tags! No bracket dateline tags!
+   - Clean, professional text. Separate paragraphs cleanly with double newlines (\n\n). No HTML tags! No bracket dateline tags!
+
+6. CRITICAL CATEGORY BADGE DIVERSITY RULE (MANDATORY):
+   - ABSOLUTE PROHIBITION: DO NOT repeat the city name (e.g. 'पटना' or 'Patna') across all slots as their categoryBadge!
+   - Every single slot MUST receive its genuine journalistic category badge reflecting the actual story content:
+     * Crime / Accidents / Police: 'अपराध' or 'हादसा'
+     * Politics / Elections / Government: 'राजनीति'
+     * Weather / Rain / Cold / Heatwave: 'मौसम'
+     * Infrastructure / Roads / Metro / Rail: 'विकास' or 'परिवहन'
+     * Health / Hospitals / Medicine: 'स्वास्थ्य'
+     * Administration / Municipal / District Collector: 'प्रशासन'
+     * Education / Universities / Board Exams: 'शिक्षा'
+     * Business / Markets / Economy / Inflation: 'कारोबार' or 'व्यापार'
+     * Sports / Cricket / Matches: 'खेल'
+     * International / World Events: 'विदेश'
+   - In a multi-city edition page (e.g. where Slot 1 is Hajipur, Slot 2 is Vaishali, Slot 3 is Gaya), assign each specific city badge to its respective slot. Never use the same badge on all slots.
 
 Slot Layout Specifications:
 ${slotRoles}
@@ -891,7 +910,7 @@ ${wireSummary}
 CRITICAL FORMATTING RULES:
 1. "headline": Sharp, publication-grade newspaper headline in ${requestedLang === 'en' ? 'ENGLISH' : requestedLang === 'hinglish' ? 'HINGLISH' : 'HINDI'} directly reflecting the wire story. (NO BRACKETS, NO DATE PREFIX, NO COMPETITOR NAMES).
 2. "subHeadline": Crisp, 1-line news summary of the key angle or takeaway from the wire facts. (NO BRACKET TAGS).
-3. "categoryBadge": The category or city name in ${requestedLang === 'en' ? 'English' : 'Hindi'} (e.g. ${requestedLang === 'en' ? "'Delhi', 'Patna', 'Hajipur', 'National', 'Sports', 'Business'" : "'दिल्ली', 'पटना', 'हाजीपुर', 'गया', 'क्रिकेट', 'व्यापार'"}).
+3. "categoryBadge": True journalistic category badge in ${requestedLang === 'en' ? 'English' : 'Hindi'} (e.g. ${requestedLang === 'en' ? "'Crime', 'Politics', 'Weather', 'Development', 'Administration', 'Health', 'Education', 'Business', 'Sports'" : "'अपराध', 'राजनीति', 'मौसम', 'विकास', 'प्रशासन', 'स्वास्थ्य', 'शिक्षा', 'कारोबार', 'खेल'"}). DO NOT repeat the city name across all slots!
 4. "content": Factually grounded broadsheet story in our own newspaper's voice in ${requestedLang === 'en' ? 'ENGLISH' : requestedLang === 'hinglish' ? 'HINGLISH' : 'Devanagari HINDI'}.
    * Start naturally with the news story. DO NOT prefix with bracket tags like "【पटना】:".
    * Fulfill the TargetWords requirement for this slot with 2-4 deep paragraphs separated with double newlines (\\n\\n). No HTML tags!
@@ -1127,6 +1146,47 @@ function assembleFinalSlots({
       verificationStatus: realtimeItem.verificationStatus || 'VERIFIED_LIMITED'
     };
   });
+
+  // Category Diversity & Journalistic Topic Sanitizer:
+  // Detect if all or majority of slots have the identical badge (e.g. all "पटना" or all identical),
+  // and dynamically assign the true journalistic category badge based on story headline content!
+  const allBadges = rawSlots.map(s => (s.categoryBadge || '').trim());
+  const badgeCounts = {};
+  allBadges.forEach(b => { if (b) badgeCounts[b] = (badgeCounts[b] || 0) + 1; });
+  const isBadgeMonoculture = Object.values(badgeCounts).some(count => count >= Math.max(3, Math.floor(rawSlots.length * 0.5)));
+
+  if (isBadgeMonoculture) {
+    const JOURNALISTIC_CATEGORIES = requestedLang === 'en'
+      ? ['Crime & Safety', 'Politics', 'Weather', 'Development', 'Administration', 'Health', 'Education', 'Business', 'Sports']
+      : ['अपराध', 'राजनीति', 'मौसम', 'विकास', 'प्रशासन', 'स्वास्थ्य', 'शिक्षा', 'कारोबार', 'खेल'];
+
+    rawSlots.forEach((slot, sIdx) => {
+      const hl = (slot.headline + ' ' + (slot.subHeadline || '')).toLowerCase();
+      let assignedBadge = '';
+      if (/हत्या|गोली|लूट|अपराध|गिरफ्तार|पुलिस|हादसा|वारदात|मौत|लाश|ट्रक|शराब|कुचल|पदक|crime|police|murder|arrest|accident|dead/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'Crime & Safety' : 'अपराध';
+      } else if (/चुनाव|राजनीति|पार्टी|विधायक|सांसद|सरकार|विपक्ष|मंत्री|राहुल|मोदी|नीतीश|तेजस्वी|जदयू|बयान|politics|election|minister|assembly|mp|mla/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'Politics' : 'राजनीति';
+      } else if (/मौसम|बारिश|ठंड|तापमान|कोहरा|धुंध|बादल|अलर्ट|हवा|चक्रवात|weather|rain|temperature|cold|fog|alert/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'Weather' : 'मौसम';
+      } else if (/मेट्रो|सड़क|पुल|ट्रेन|बस|फ्लाईओवर|परिवहन|कॉरिडोर|एयरपोर्ट|विकास|स्पेशल बसें|metro|train|railway|highway|corridor|bus/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'Development' : 'विकास';
+      } else if (/अस्पताल|डेंगू|दवा|मरीज|स्वास्थ्य|डॉक्टर|इलाज|बीमारी|hospital|dengue|doctor|health|medical|medicine/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'Health' : 'स्वास्थ्य';
+      } else if (/निगम|कलेक्टर|डीएम|प्रशासन|आदेश|अधिसूचना|समीक्षा|बैठक|municipal|collector|dm|administration|order/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'Administration' : 'प्रशासन';
+      } else if (/परीक्षा|स्कूल|कॉलेज|छात्र|एडमिट कार्ड|रिजल्ट|यूनिवर्सिटी|शिक्षा|exam|admit card|result|school|college|education|student/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'Education' : 'शिक्षा';
+      } else if (/शेयर|बाजार|सेंसेक्स|कारोबार|व्यापार|दुकान|मछली|दाम|भाव|उद्योग|आउटलेट|business|economy|market|sensex|stock|trade|price/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'Business' : 'कारोबार';
+      } else if (/क्रिकेट|मैच|रन|विकेट|जीत|हार|खेल|टूर्नामेंट|ipl|cricket|football|sports|match|wicket/i.test(hl)) {
+        assignedBadge = requestedLang === 'en' ? 'Sports' : 'खेल';
+      } else {
+        assignedBadge = JOURNALISTIC_CATEGORIES[sIdx % JOURNALISTIC_CATEGORIES.length];
+      }
+      slot.categoryBadge = assignedBadge;
+    });
+  }
 
   return rawSlots;
 }
