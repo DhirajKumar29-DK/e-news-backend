@@ -246,3 +246,39 @@ export const getAutomationJobHistory = async (req, res, next) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const triggerManualAutomation = async (req, res, next) => {
+  try {
+    const { editionSlug, targetDate, apiKey } = req.body || {};
+    const { executeAutomatedEditionGeneration } = await import('./epaperBatchGenerator.service.js');
+
+    const isAsync = req.query.async === 'true';
+
+    if (isAsync) {
+      executeAutomatedEditionGeneration({
+        editionSlug: editionSlug || 'patna-main',
+        targetDate: targetDate || null,
+        manualTrigger: true,
+        customApiKey: apiKey || ''
+      }).catch(err => console.error('[triggerManualAutomation Background Error]:', err.message));
+
+      return sendSuccess(res, 'Automated newspaper edition generation triggered in background', {
+        status: 'GENERATING',
+        editionSlug: editionSlug || 'patna-main',
+        targetDate: targetDate || new Date().toISOString().split('T')[0]
+      });
+    }
+
+    const result = await executeAutomatedEditionGeneration({
+      editionSlug: editionSlug || 'patna-main',
+      targetDate: targetDate || null,
+      manualTrigger: true,
+      customApiKey: apiKey || ''
+    });
+
+    return sendSuccess(res, 'Automated newspaper edition generated successfully', result);
+  } catch (error) {
+    console.error('[triggerManualAutomation] Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

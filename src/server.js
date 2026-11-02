@@ -26,6 +26,16 @@ const startServer = async () => {
       }
     }, 8000);
 
+    // Background AI E-Paper Daily Publication Scheduler
+    setTimeout(async () => {
+      try {
+        const { startEpaperScheduler } = await import('./modules/epaper/epaperScheduler.service.js');
+        startEpaperScheduler();
+      } catch (e) {
+        console.warn('[EpaperScheduler] Startup notice:', e.message);
+      }
+    }, 6000);
+
     setInterval(async () => {
       try {
         const { syncYouTubeVideos } = await import('./modules/video/youtubeSync.service.js');
