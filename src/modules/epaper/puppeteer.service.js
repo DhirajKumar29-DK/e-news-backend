@@ -60,7 +60,7 @@ export function buildPageFragment(opts, pageObj, pIdx) {
   if (isMasthead) {
     // 1:1 Exact Match with Website Page 1 Grand Broadsheet Masthead
     const mastheadH = Number(headerCfg.height) && Number(headerCfg.height) >= 120 ? Number(headerCfg.height) : 168;
-    const mastheadMargin = Number(headerCfg.bottomMargin) && Number(headerCfg.bottomMargin) >= 8 ? Number(headerCfg.bottomMargin) : 20;
+    const mastheadMargin = Number(headerCfg.bottomMargin) !== undefined && Number(headerCfg.bottomMargin) <= 4 ? Number(headerCfg.bottomMargin) : 2;
     const themeColor = headerCfg.titleColorMain || headerCfg.titleColor || '#c51c24';
     const cityText = headerCfg.cityText || cleanCity;
 
@@ -119,7 +119,7 @@ export function buildPageFragment(opts, pageObj, pIdx) {
   } else {
     // 1:1 Exact Match with Website Page 2+ Section Header
     const sectionH = Number(headerCfg.height) && Number(headerCfg.height) >= 40 ? Number(headerCfg.height) : 56;
-    const sectionMargin = Number(headerCfg.bottomMargin) && Number(headerCfg.bottomMargin) >= 8 ? Number(headerCfg.bottomMargin) : 18;
+    const sectionMargin = Number(headerCfg.bottomMargin) !== undefined && Number(headerCfg.bottomMargin) <= 4 ? Number(headerCfg.bottomMargin) : 2;
     const cityText = headerCfg.cityText || cleanCity;
     const pageBadge = headerCfg.pageBadgeText || String(pageNum).padStart(2, '0');
     const pageBadgeBg = headerCfg.pageBadgeBg || '#1e293b';

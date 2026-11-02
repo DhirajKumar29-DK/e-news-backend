@@ -10,15 +10,15 @@ export const BROADSHEET_CONFIG = {
   CANVAS_HEIGHT: 2112,
   MARGIN_X: 16,
   GUTTER: 16,
-  PAGE_1_TOP_OFFSET: 220, // Space for grand masthead
-  PAGE_N_TOP_OFFSET: 130, // Space for sleek section header
+  PAGE_1_TOP_OFFSET: 184, // Space for grand masthead (2px below header line)
+  PAGE_N_TOP_OFFSET: 72,  // Space for sleek section header (2px below header line)
   FOOTER_OFFSET: 60
 };
 
 export function get1SlotLayout(pageNumber = 1) {
   const isPage1 = Number(pageNumber) === 1;
   const topY = isPage1 ? BROADSHEET_CONFIG.PAGE_1_TOP_OFFSET : BROADSHEET_CONFIG.PAGE_N_TOP_OFFSET;
-  const height = isPage1 ? 1780 : 1880;
+  const height = isPage1 ? 1830 : 1940;
 
   return [
     {
@@ -49,7 +49,7 @@ export function get1SlotLayout(pageNumber = 1) {
 export function get2SlotLayout(pageNumber = 1) {
   const isPage1 = Number(pageNumber) === 1;
   const topY = isPage1 ? BROADSHEET_CONFIG.PAGE_1_TOP_OFFSET : BROADSHEET_CONFIG.PAGE_N_TOP_OFFSET;
-  const totalH = isPage1 ? 1780 : 1880;
+  const totalH = isPage1 ? 1830 : 1940;
   const halfH = Math.floor((totalH - BROADSHEET_CONFIG.GUTTER) / 2);
 
   const y1 = topY;
@@ -106,7 +106,7 @@ export function get2SlotLayout(pageNumber = 1) {
 export function get3SlotLayout(pageNumber = 1) {
   const isPage1 = Number(pageNumber) === 1;
   const topY = isPage1 ? BROADSHEET_CONFIG.PAGE_1_TOP_OFFSET : BROADSHEET_CONFIG.PAGE_N_TOP_OFFSET;
-  const totalH = isPage1 ? 1780 : 1880;
+  const totalH = isPage1 ? 1830 : 1940;
   const tier1H = isPage1 ? 620 : 660;
   const tier2H = totalH - tier1H - BROADSHEET_CONFIG.GUTTER;
 
@@ -186,7 +186,7 @@ export function get3SlotLayout(pageNumber = 1) {
 export function get4SlotLayout(pageNumber = 1) {
   const isPage1 = Number(pageNumber) === 1;
   const topY = isPage1 ? BROADSHEET_CONFIG.PAGE_1_TOP_OFFSET : BROADSHEET_CONFIG.PAGE_N_TOP_OFFSET;
-  const totalH = isPage1 ? 1780 : 1880;
+  const totalH = isPage1 ? 1830 : 1940;
   const halfH = Math.floor((totalH - BROADSHEET_CONFIG.GUTTER) / 2);
 
   const y1 = topY;
@@ -288,7 +288,7 @@ export function get5SlotLayout(pageNumber = 1) {
   const isPage1 = Number(pageNumber) === 1;
   const topY = isPage1 ? BROADSHEET_CONFIG.PAGE_1_TOP_OFFSET : BROADSHEET_CONFIG.PAGE_N_TOP_OFFSET;
   const tier1H = isPage1 ? 540 : 580;
-  const remainingH = (isPage1 ? 1780 : 1880) - tier1H - (BROADSHEET_CONFIG.GUTTER * 2);
+  const remainingH = (isPage1 ? 1830 : 1940) - tier1H - (BROADSHEET_CONFIG.GUTTER * 2);
   const midH = Math.floor(remainingH / 2);
 
   const y1 = topY;
