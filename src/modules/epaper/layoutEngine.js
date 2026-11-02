@@ -1390,27 +1390,46 @@ export function get10SlotLayout(pageNumber = 1) {
 export function getBroadsheetBlueprint({ slotCount = 7, pageNumber = 1 }) {
   const count = Math.min(10, Math.max(1, Number(slotCount) || 7));
 
+  let rawSlots = [];
   switch (count) {
     case 1:
-      return get1SlotLayout(pageNumber);
+      rawSlots = get1SlotLayout(pageNumber);
+      break;
     case 2:
-      return get2SlotLayout(pageNumber);
+      rawSlots = get2SlotLayout(pageNumber);
+      break;
     case 3:
-      return get3SlotLayout(pageNumber);
+      rawSlots = get3SlotLayout(pageNumber);
+      break;
     case 4:
-      return get4SlotLayout(pageNumber);
+      rawSlots = get4SlotLayout(pageNumber);
+      break;
     case 5:
-      return get5SlotLayout(pageNumber);
+      rawSlots = get5SlotLayout(pageNumber);
+      break;
     case 6:
-      return get6SlotLayout(pageNumber);
+      rawSlots = get6SlotLayout(pageNumber);
+      break;
     case 7:
-      return get7SlotLayout(pageNumber);
+      rawSlots = get7SlotLayout(pageNumber);
+      break;
     case 8:
-      return get8SlotLayout(pageNumber);
+      rawSlots = get8SlotLayout(pageNumber);
+      break;
     case 9:
-      return get9SlotLayout(pageNumber);
+      rawSlots = get9SlotLayout(pageNumber);
+      break;
     case 10:
     default:
-      return get10SlotLayout(pageNumber);
+      rawSlots = get10SlotLayout(pageNumber);
+      break;
   }
+
+  // Standardize professional typography: Heading=23px (Lead 28px), Subheading=19px, Content=15px
+  return rawSlots.map((s, idx) => ({
+    ...s,
+    headlineFontSize: idx === 0 && count > 1 ? (s.headlineFontSize || 28) : 23,
+    subHeadlineFontSize: 19,
+    summaryFontSize: 15
+  }));
 }
