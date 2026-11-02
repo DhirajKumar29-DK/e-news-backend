@@ -76,6 +76,12 @@ export const DEFAULT_PAGE_BLUEPRINTS = [
  * Get or seed default Automation Config and Blueprints for an Edition
  */
 export async function getOrCreateAutomationConfig(editionSlug = 'patna-main') {
+  // 1. Fetch real edition metadata from Database
+  const edition = await prisma.edition.findUnique({
+    where: { slug: editionSlug }
+  });
+  const editionCity = edition?.city || (editionSlug === 'patna-main' ? 'पटना' : editionSlug);
+
   let config = await prisma.epaperAutomationConfig.findUnique({
     where: { editionSlug },
     include: {
@@ -90,18 +96,85 @@ export async function getOrCreateAutomationConfig(editionSlug = 'patna-main') {
   });
 
   if (!config) {
-    // Seed default 8-page config
+    // Dynamic city-tailored blueprint template for this edition
+    const tailoredBlueprints = [
+      {
+        pageNumber: 1,
+        pageTitle: 'मुख्य पृष्ठ (Front Page)',
+        headerType: 'grand',
+        targetTopic: 'भारत और दुनिया की मुख्य बड़ी खबरें',
+        slotCount: 7,
+        order: 1
+      },
+      {
+        pageNumber: 2,
+        pageTitle: `${editionCity} लोकल & ज़िला`,
+        headerType: 'folio',
+        targetTopic: `${editionCity} और आसपास की प्रमुख स्थानीय खबरें, विकास व प्रशासनिक कार्य`,
+        slotCount: 7,
+        order: 2
+      },
+      {
+        pageNumber: 3,
+        pageTitle: 'राज्य & प्रादेशिक (State & Region)',
+        headerType: 'folio',
+        targetTopic: `${editionCity} और राज्य की बड़ी खबरें, राजनीति व प्रशासनिक हलचल`,
+        slotCount: 6,
+        order: 3
+      },
+      {
+        pageNumber: 4,
+        pageTitle: 'राष्ट्रीय & राजनीति (National Politics)',
+        headerType: 'folio',
+        targetTopic: 'आज की राष्ट्रीय राजनीति और संसद की बड़ी खबरें',
+        slotCount: 6,
+        order: 4
+      },
+      {
+        pageNumber: 5,
+        pageTitle: 'कारोबार & बाजार (Business & Market)',
+        headerType: 'folio',
+        targetTopic: 'अर्थव्यवस्था, शेयर बाजार और व्यापार जगत की हलचल',
+        slotCount: 6,
+        order: 5
+      },
+      {
+        pageNumber: 6,
+        pageTitle: 'दुनिया & विदेश (World Affairs)',
+        headerType: 'folio',
+        targetTopic: 'विश्व पटल की प्रमुख कूटनीतिक और वैश्विक हलचल',
+        slotCount: 6,
+        order: 6
+      },
+      {
+        pageNumber: 7,
+        pageTitle: 'खेल जगत (Sports Arena)',
+        headerType: 'folio',
+        targetTopic: 'क्रीड़ा जगत: राष्ट्रीय व अंतरराष्ट्रीय खेल समाचार क्रिकेट',
+        slotCount: 6,
+        order: 7
+      },
+      {
+        pageNumber: 8,
+        pageTitle: 'संपादकीय & विचार (Editorial & Analysis)',
+        headerType: 'folio',
+        targetTopic: 'विशेष संपादकीय आलेख और समसामयिक विषयों पर गहन विश्लेषण',
+        slotCount: 3,
+        order: 8
+      }
+    ];
+
     config = await prisma.epaperAutomationConfig.create({
       data: {
         editionSlug,
         isEnabled: false,
         scheduleTime: '05:00',
         timezone: 'Asia/Kolkata',
-        targetCity: 'पटना',
-        totalPages: DEFAULT_PAGE_BLUEPRINTS.length,
+        targetCity: editionCity,
+        totalPages: tailoredBlueprints.length,
         autoPublish: false,
         blueprints: {
-          create: DEFAULT_PAGE_BLUEPRINTS.map(bp => ({
+          create: tailoredBlueprints.map(bp => ({
             pageNumber: bp.pageNumber,
             pageTitle: bp.pageTitle,
             headerType: bp.headerType,

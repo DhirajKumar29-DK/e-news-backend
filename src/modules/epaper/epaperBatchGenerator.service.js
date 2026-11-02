@@ -92,8 +92,12 @@ export async function executeAutomatedEditionGeneration({
       addLog(`Generating Page ${pageNum}/${activeBlueprints.length}: "${bp.pageTitle}" (Topic: "${bp.targetTopic}", Slots: ${bp.slotCount})...`);
 
       try {
+        const effectivePagePrompt = (bp.targetTopic && bp.targetTopic.trim())
+          ? `${bp.pageTitle ? bp.pageTitle + ': ' : ''}${bp.targetTopic}`
+          : (bp.pageTitle || 'आज की मुख्य ताज़ा खबरें');
+
         const pageResult = await generateFullPageNewspaper({
-          prompt: bp.targetTopic,
+          prompt: effectivePagePrompt,
           pageNumber: pageNum,
           editionCity: config.targetCity || 'पटना',
           slotCount: bp.slotCount,
