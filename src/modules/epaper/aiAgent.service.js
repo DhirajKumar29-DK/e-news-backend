@@ -6,7 +6,8 @@ import {
   parseSubtopicRatios,
   calculateStorySimilarity,
   validateItemFreshness,
-  getSignificantTokens
+  getSignificantTokens,
+  stripAllMediaChannelNames
 } from './realtimeNews.service.js';
 import { getBroadsheetBlueprint } from './layoutEngine.js';
 import { callUniversalAI } from '../aiSettings/universalAiGateway.js';
@@ -42,10 +43,11 @@ export function stripHtmlTagsToPlainText(str) {
 
 /**
  * Remove forced dateline brackets like 【पटना • 29 अक्टूबर 2026】 : from headlines/subheadlines/content
+ * and strictly strip any external competitor media or TV channel brand names.
  */
 export function cleanDatelineBrackets(str) {
   if (!str) return '';
-  return str
+  const cleaned = str
     .replace(/<[^>]+>/g, ' ') // Strip any HTML wrappers first
     .replace(/^[【\[][^】\]]*[】\]]\s*:?\s*/gi, '')
     .replace(/【[^】]*】\s*:?\s*/gi, '')
@@ -53,6 +55,7 @@ export function cleanDatelineBrackets(str) {
     .replace(/^[\u0900-\u097F\w\s]{2,15}\s*•\s*[\d\u0900-\u097F\w\s]{4,30}\s*[:\-]\s*/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+  return stripAllMediaChannelNames(cleaned);
 }
 
 /**
@@ -355,12 +358,13 @@ const SYSTEM_PROMPT = `You are "AI News Editor & Art Director", an expert biling
 
 CORE RESPONSIBILITIES:
 1. NEWSPAPER WRITING, EDITING & PROOFREADING:
-   - Write in authentic, formal, publication-ready Devanagari Hindi (दैनिक जागरण / हिन्दुस्तान ब्रॉडशीट शैली).
+   - Write in authentic, formal, publication-ready broadsheet journalism standard.
    - Write pure authentic Hindi Devanagari text.
    - Separate paragraphs cleanly using standard double newlines (\\n\\n).
    - CRITICAL REQUIREMENT: DO NOT use <p>, </p>, <mark>, <div>, or any HTML tags in content!
    - DO NOT put artificial bracket prefixes like 【पटना • 29 अक्टूबर】 in subHeadline, headline, or content!
    - NO MARKDOWN IN COPY: Do NOT put ** bold asterisks or ### headers inside headline, subHeadline, or content!
+   - ZERO COMPETITOR BRANDING (ABSOLUTE BAN): NEVER include, cite, credit, or append any external media, newspaper, or TV channel name (such as Prabhat Khabar, प्रभात खबर, ABP News, एबीपी न्यूज, ETV Bharat, ईटीवी भारत, Dainik Jagran, दैनिक जागरण, Hindustan, हिन्दुस्तान, Amar Ujala, अमर उजाला, Dainik Bhaskar, दैनिक भास्कर, Aaj Tak, आज तक, NDTV, Zee News, News18, TV9, Live Cities, etc.) anywhere in headlines, subHeadlines, or body content. Write strictly under our own newspaper's authoritative voice.
    - When asked to proofread, check mistakes, or correct news:
      * First, write your editorial review critique and explanation in normal chat text.
      * Second, in the JSON block, put ONLY the 100% clean, publication-ready story in "headline", "subHeadline", and "content". NEVER put your critique notes or review explanations inside the JSON fields!
@@ -817,11 +821,13 @@ async function tryUniversalPageGeneration({
   if (!effectiveKey) return null;
 
   const wireSummary = realtimeItems.slice(0, 15).map((item, idx) => {
-    const snippetText = item.snippet ? `\n   Key Supporting Facts: ${item.snippet}` : '';
+    const cleanHeadline = stripAllMediaChannelNames(cleanDatelineBrackets(item.headline));
+    const cleanSnippet = stripAllMediaChannelNames(cleanDatelineBrackets(item.snippet || ''));
+    const snippetText = cleanSnippet ? `\n   Key Supporting Facts: ${cleanSnippet}` : '';
     const relTime = item.relativeTime ? ` | Published: ${item.relativeTime}` : '';
     const vStatus = item.verificationStatus ? ` | Verification Level: ${item.verificationStatus}` : '';
     const subtopicTag = item.subtopic ? ` | Category / City: ${item.subtopic}` : '';
-    return `[Story ${idx + 1}] Title: ${item.headline}${relTime}${vStatus}${subtopicTag}${snippetText}`;
+    return `[Story ${idx + 1}] Title: ${cleanHeadline}${relTime}${vStatus}${subtopicTag}${snippetText}`;
   }).join('\n\n');
 
   const userInstruction = (customPrompt || topic || '').trim();
@@ -985,18 +991,19 @@ function synthesizeFallbackEditorialStory(item, slotBlueprint, index, topic, edi
   const isEn = requestedLang === 'en';
   const isHinglish = requestedLang === 'hinglish';
 
-  const rawTitle = item?.headline || (isEn ? `${topic} Special Report` : `${topic} विशेष समाचार`);
+  const rawTitle = stripAllMediaChannelNames(item?.headline || (isEn ? `${topic} Special Report` : `${topic} विशेष समाचार`));
   const categoryBadge = slotBlueprint.categoryBadge || (isEn ? (index === 0 ? 'Lead Story' : 'Special Report') : (index === 0 ? 'लीड स्टोरी' : 'विशेष रिपोर्ट'));
 
   // Headline: Clean, professional broadsheet headline
-  const headline = cleanDatelineBrackets(rawTitle.replace(/\s*-\s*[^-]+$/, '').trim());
+  const headline = stripAllMediaChannelNames(cleanDatelineBrackets(rawTitle.replace(/\s*-\s*[^-]+$/, '').trim()));
 
-  // Sub-Headline: Extracted from verified snippet or crisp angle, strictly NO bracket tags
+  // Sub-Headline: Extracted from verified snippet or crisp angle, strictly NO bracket tags & NO competitor names
   let subHeadline = '';
   if (item?.subHeadline) {
-    subHeadline = cleanDatelineBrackets(item.subHeadline);
+    subHeadline = stripAllMediaChannelNames(cleanDatelineBrackets(item.subHeadline));
   } else if (item?.snippet) {
-    const firstSentence = item.snippet.split(/[।.\n]/)[0]?.trim();
+    const cleanSnippet = stripAllMediaChannelNames(item.snippet);
+    const firstSentence = cleanSnippet.split(/[।.\n]/)[0]?.trim();
     if (firstSentence && firstSentence.length > 20 && firstSentence.length < 120) {
       subHeadline = isEn ? (firstSentence + '.') : (firstSentence + '।');
     }
@@ -1007,8 +1014,9 @@ function synthesizeFallbackEditorialStory(item, slotBlueprint, index, topic, edi
       ? `Key developments unfold around ${headline} as administration assesses impact.`
       : `${headline} को लेकर घटनाक्रम तेज, आधिकारिक स्तर पर समीक्षा जारी।`;
   }
+  subHeadline = stripAllMediaChannelNames(subHeadline);
 
-  const snippet = item?.snippet || '';
+  const snippet = stripAllMediaChannelNames(item?.snippet || '');
 
   // English photo prompt
   const photoPrompt = `${headline} editorial journalism photo realistic 8k`;
@@ -1031,7 +1039,7 @@ function synthesizeFallbackEditorialStory(item, slotBlueprint, index, topic, edi
     p4 = `क्षेत्रीय स्तर पर इस विषय पर लोगों और स्थानीय प्रतिनिधियों का भी ध्यान बना हुआ है। आगामी दिनों में इस संदर्भ में विस्तृत दिशा-निर्देश और नई प्रगति सामने आने की पूरी उम्मीद है।`;
   }
 
-  const content = `${p1}\n\n${p2}\n\n${p3}\n\n${p4}`;
+  const content = stripAllMediaChannelNames(`${p1}\n\n${p2}\n\n${p3}\n\n${p4}`);
 
   return {
     headline,
@@ -1082,10 +1090,10 @@ function assembleFinalSlots({
 
       if (sim >= 0.15 || contentHasWireTokens || (isCrossLingual && isSubstantive) || isSubstantive) {
         storyData = {
-          headline: candHeadline,
-          subHeadline: cleanDatelineBrackets(stories[idx].subHeadline || ''),
+          headline: stripAllMediaChannelNames(cleanDatelineBrackets(candHeadline)),
+          subHeadline: stripAllMediaChannelNames(cleanDatelineBrackets(stories[idx].subHeadline || '')),
           categoryBadge: stories[idx].categoryBadge || realtimeItem?.subtopic || slotBlueprint.categoryBadge,
-          content: candContent,
+          content: stripAllMediaChannelNames(cleanDatelineBrackets(candContent)),
           photoPrompt: stories[idx].photoPrompt || `${realtimeItem?.headline || candHeadline} editorial press photography`
         };
       } else {
@@ -1110,9 +1118,9 @@ function assembleFinalSlots({
       );
     }
 
-    const cleanHeadline = cleanDatelineBrackets(storyData.headline);
-    const cleanSubHeadline = cleanDatelineBrackets(storyData.subHeadline);
-    const cleanContent = cleanDatelineBrackets(storyData.content);
+    const cleanHeadline = stripAllMediaChannelNames(cleanDatelineBrackets(storyData.headline));
+    const cleanSubHeadline = stripAllMediaChannelNames(cleanDatelineBrackets(storyData.subHeadline));
+    const cleanContent = stripAllMediaChannelNames(cleanDatelineBrackets(storyData.content));
 
     const imageUrl = resolveEditorialStoryImage({
       topic,

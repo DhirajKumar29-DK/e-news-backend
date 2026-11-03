@@ -293,6 +293,103 @@ export function calculateStorySimilarity(titleA = '', titleB = '') {
   return union > 0 ? (intersection / union) : 0;
 }
 
+export const COMPETITOR_MEDIA_PATTERNS = [
+  'Prabhat Khabar', 'PrabhatKhabar', 'प्रभात खबर', 'प्रभातखबर',
+  'ABP News', 'ABP Live', 'ABP Ganga', 'ABP Sanjha', 'ABP Majha', 'ABP Asmita', 'ABP Ananda', 'ABP',
+  'एबीपी न्यूज़', 'एबीपी न्यूज', 'एबीपी लाइव', 'एबीपी गंगा', 'एबीपी',
+  'ETV Bharat', 'ETV Bihar', 'ETV UP', 'ETV News', 'ETV', 'ईटीवी भारत', 'ईटीवी बिहार', 'ईटीवी',
+  'Dainik Jagran', 'Jagran New Media', 'Jagran Josh', 'Jagran Hindi', 'Jagran', 'दैनिक जागरण', 'जागरण',
+  'Dainik Bhaskar', 'दैनिक भास्कर', 'भास्कर अपडेट्स', 'भास्कर', 'Bhaskar',
+  'Live Hindustan', 'Hindustan Times', 'Hindustan', 'लाइव हिन्दुस्तान', 'लाइव हिंदुस्तान', 'हिन्दुस्तान', 'हिंदुस्तान',
+  'Amar Ujala', 'Amarujala', 'अमर उजाला',
+  'Aaj Tak', 'AajTak', 'आज तक', 'आजतक',
+  'India Today Group', 'India Today', 'इंडिया टुडे',
+  'NDTV India', 'NDTV 24x7', 'NDTV Profit', 'NDTV MPCG', 'NDTV Rajasthan', 'NDTV', 'एनडीटीवी इंडिया', 'एनडीटीवी',
+  'News18 Bihar', 'News18 Hindi', 'News18 India', 'News18 UP', 'News18 MP', 'News18', 'News 18', 'CNN News18',
+  'न्यूज़18 बिहार', 'न्यूज18 बिहार', 'न्यूज़18', 'न्यूज18', 'न्यूज़ 18', 'न्यूज 18',
+  'TV9 Bharatvarsh', 'TV9 Hindi', 'TV9 Bihar', 'TV9', 'टीवी9 भारतवर्ष', 'टीवी9',
+  'Zee Bihar Jharkhand', 'Zee Hindustan', 'Zee News', 'Zee UP', 'Zee Rajasthan', 'Zee Bharat', 'Zee 24 Ghanta', 'Zee',
+  'ज़ी बिहार झारखंड', 'जी बिहार झारखंड', 'ज़ी हिन्दुस्तान', 'जी हिंदुस्तान', 'ज़ी न्यूज़', 'जी न्यूज़', 'ज़ी न्यूज', 'जी न्यूज',
+  'India TV', 'IndiaTV', 'इंडिया टीवी',
+  'Republic Bharat', 'Republic TV', 'Republic World', 'R Bharat', 'रिपब्लिक भारत', 'रिपब्लिक टीवी',
+  'Times of India', 'The Times of India', 'TOI', 'टाइम्स ऑफ इंडिया',
+  'The Hindu', 'Indian Express', 'The Indian Express', 'Financial Express',
+  'Live Cities', 'LiveCities', 'लाइव सिटीज', 'लाइव सिटीज़',
+  'Firstpost', 'Oneindia', 'One India', 'Moneycontrol', 'CNBC Awaaz', 'CNBC',
+  'Punjab Kesari', 'पंजाब केसरी', 'Navodaya Times', 'नवोदय टाइम्स',
+  'Rashtriya Sahara', 'राष्ट्रीय सहारा', 'Sahara Samay', 'सहारा समय',
+  'Jansatta', 'जनसत्ता', 'Navbharat Times', 'नवभारत टाइम्स', 'NBT',
+  'Hari Bhoomi', 'Haribhoomi', 'हरिभूमि', 'हरि भूमि', 'Pratahkal', 'प्रातःकाल',
+  'Deshbandhu', 'देशबंधु', 'Sanmarg', 'सन्मार्ग',
+  'Kashish News', 'कशिश न्यूज़', 'कशिश न्यूज',
+  'News Nation', 'न्यूज़ नेशन', 'न्यूज नेशन',
+  'News 24', 'News24', 'न्यूज़ 24', 'न्यूज 24',
+  'Bharat Samachar', 'भारत समाचार', 'Sudarshan News', 'सुदर्शन न्यूज़', 'सुदर्शन न्यूज',
+  'Lokmat Hindi', 'Lokmat', 'लोकमत',
+  'BBC Hindi', 'BBC News', 'BBC', 'बीबीसी हिंदी', 'बीबीसी',
+  'ANI', 'PTI', 'UNI', 'IANS', 'एएनआई', 'पीटीआई', 'Reuters'
+];
+
+const SORTED_MEDIA_ESCAPED = COMPETITOR_MEDIA_PATTERNS
+  .slice()
+  .sort((a, b) => b.length - a.length)
+  .map(m => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .join('|');
+
+const RE_BRACKETED_MEDIA = new RegExp('[\\[\\(\\{【][\\s]*(?:' + SORTED_MEDIA_ESCAPED + ')[\\s]*[\\]\\)\\}】]', 'gi');
+const RE_INLINE_MEDIA_PROMPT = new RegExp('(?:\\b|\\s)(?:जानिए|पढ़ें|पढें|देखें|साभार|सौजन्य|स्रोत|courtesy|source|via|by|credit)\\s*[:：\\-]?\\s*(?:' + SORTED_MEDIA_ESCAPED + ')(?:\\s*पर)?', 'gi');
+const RE_HI_INLINE_ATTR = new RegExp('(?:' + SORTED_MEDIA_ESCAPED + ')\\s*(?:के\\s*(?:अनुसार|मुताबिक)|से\\s*(?:बातचीत\\s*में|कहा))', 'gi');
+const RE_HI_SUBJECT_ATTR = new RegExp('(?:' + SORTED_MEDIA_ESCAPED + ')\\s*ने', 'gi');
+const RE_HI_POSSESSIVE_ATTR = new RegExp('(?:' + SORTED_MEDIA_ESCAPED + ')\\s*(?:का|की|के)', 'gi');
+const RE_EN_INLINE_ATTR = new RegExp('(?:according\\s*to|as\\s*reported\\s*by|reported\\s*by|speaking\\s*to)\\s*(?:' + SORTED_MEDIA_ESCAPED + ')', 'gi');
+const RE_PREFIX_MEDIA = new RegExp('^(?:(?:[\\-–—|/•·~]|(?:साभार|सौजन्य|स्रोत|courtesy|source|via)\\s*[:：\\-]?)\\s*)?(?:' + SORTED_MEDIA_ESCAPED + '|भास्कर अपडेट्स?|दैनिक भास्कर|अपडेट्स?|अपडेट\\s*::|ब्रेकिंग\\s*::|बड़ी ख़बर|बड़ी खबर|लाइव अपडेट्स?|Breaking News|Live Updates)\\s*[:：|–—-]+\\s*', 'gi');
+const RE_TRAILING_MEDIA = new RegExp('\\s*(?:[\\-–—|/•·~,]\\s*)?(?:' + SORTED_MEDIA_ESCAPED + ')\\s*[।|.\\-!?:;,)’"\'\\s]*$', 'i');
+const RE_STANDALONE_ANYWHERE = new RegExp('(?<=^|\\s)(?:' + SORTED_MEDIA_ESCAPED + ')(?=[\\s।|.\\-!?:;,]|$)', 'gi');
+
+/**
+ * Universal Journalism Sanitizer:
+ * Strictly eliminates competitor newspaper, TV channel, and news wire names from all copy.
+ */
+export function stripAllMediaChannelNames(text) {
+  if (!text || typeof text !== 'string') return '';
+  let clean = text;
+
+  // 1. Remove bracketed / enclosed media tags: (Prabhat Khabar), [ABP News], 【ETV Bharat】
+  clean = clean.replace(RE_BRACKETED_MEDIA, ' ');
+
+  // 2. Remove inline prompts like 'जानिए Hindustan', 'पढ़ें प्रभात खबर पर', 'साभार: ABP News'
+  clean = clean.replace(RE_INLINE_MEDIA_PROMPT, ' ');
+
+  // 3. Transform inline attributions into neutral editorial phrasing
+  clean = clean.replace(RE_HI_INLINE_ATTR, 'सूत्रों के अनुसार');
+  clean = clean.replace(RE_HI_SUBJECT_ATTR, 'सूत्रों ने');
+  clean = clean.replace(RE_HI_POSSESSIVE_ATTR, 'सूत्रों का');
+  clean = clean.replace(RE_EN_INLINE_ATTR, 'according to official sources');
+
+  // 4. Remove leading prefix publisher tags: 'Prabhat Khabar: ', 'प्रभात खबर : ', 'भास्कर अपडेट्स :: ', 'लाइव अपडेट्स :'
+  clean = clean.replace(RE_PREFIX_MEDIA, '');
+
+  // 5. Remove trailing media names: '...Prabhat Khabar।', '...ABP News।', '...ETV Bharat।', '...Hindustan।'
+  clean = clean.replace(RE_TRAILING_MEDIA, '');
+
+  // 6. Remove any leftover standalone competitor mentions anywhere in text
+  clean = clean.replace(RE_STANDALONE_ANYWHERE, '');
+
+  // 7. Clean dangling trailing punctuation at end
+  clean = clean.replace(/\s*[\-–—|:;,~]\s*$/, '').trim();
+
+  // 8. Fix punctuation artifacts (e.g., '? ।' -> '?', '! ।' -> '!', multiple danda/dots)
+  clean = clean.replace(/([?!])\s*[।.]+/g, '$1');
+  clean = clean.replace(/[।.]\s*([?!])/g, '$1');
+  clean = clean.replace(/[।]{2,}/g, '।');
+  clean = clean.replace(/\.{2,}/g, '.');
+
+  // 9. Normalize multi-spaces
+  clean = clean.replace(/[ \t]+/g, ' ').trim();
+
+  return clean;
+}
+
 /**
  * Low-level RSS fetch with strict rolling 24h guarantee & description/snippet parsing
  */
@@ -370,11 +467,7 @@ async function fetchRssItems(query, targetDate) {
       }
 
       // Aggressively strip competitor prefixes, suffixes, and publisher tags
-      headline = headline
-        .replace(/^(?:भास्कर अपडेट्स|दैनिक भास्कर|अपडेट्स?|अपडेट\s*::|ब्रेकिंग\s*::|बड़ी ख़बर|लाइव अपडेट्स?|Breaking News|Live Updates)\s*[:：|–—-]\s*/gi, '')
-        .replace(/\s*[-–—|]\s*(?:Dainik\s*Bhaskar|Bhaskar|Jagran|Dainik\s*Jagran|Amar\s*Ujala|Hindustan|Live\s*Hindustan|AajTak|Aaj\s*Tak|NDTV|NDTV\s*India|ABP\s*News|ABP|News18|TV9|BBC|BBC\s*Hindi|Navbharat\s*Times|NBT|Zee\s*News|India\s*TV|India\s*Today|The\s*Hindu|Indian\s*Express)[^$]*$/gi, '')
-        .replace(/\s+(?:AajTak|Hindustan|Dainik Bhaskar|Bhaskar|Jagran|Amar Ujala|NDTV|ABP News|News18|BBC)\s*$/gi, '')
-        .trim();
+      headline = stripAllMediaChannelNames(headline);
 
       // Extract real supporting facts/summary from RSS description snippet
       let snippet = '';
@@ -385,7 +478,7 @@ async function fetchRssItems(query, targetDate) {
           .replace(/\s+/g, ' ')
           .trim();
         if (rawDescClean.length > 20) {
-          snippet = rawDescClean;
+          snippet = stripAllMediaChannelNames(rawDescClean);
         }
       }
 
@@ -463,12 +556,12 @@ export async function fetchGdeltNews(query, targetDate) {
       if (!freshness.isValid) continue;
 
       results.push({
-        headline: a.title.trim(),
+        headline: stripAllMediaChannelNames(a.title.trim()),
         source: a.domain || 'Global Wire',
         pubDate,
         relativeTime: formatRelativeTimeHindi(pubDate, targetDate),
         link: a.url || '',
-        snippet: a.socialimage ? `Coverage via ${a.domain}` : '',
+        snippet: stripAllMediaChannelNames(a.socialimage ? `Coverage via wire facts` : ''),
         verificationStatus: 'VERIFIED_LIMITED',
         sourceEngine: 'GDELT'
       });
@@ -773,9 +866,9 @@ export async function fetchDatabaseRecentArticles(categoryKeyword = '', limit = 
 
     return dbArticles.map((a, i) => ({
       id: `db-${a.id || i + 1}`,
-      headline: a.title,
-      subHeadline: a.subHeadline || '',
-      content: a.content || '',
+      headline: stripAllMediaChannelNames(a.title),
+      subHeadline: stripAllMediaChannelNames(a.subHeadline || ''),
+      content: stripAllMediaChannelNames(a.content || ''),
       category: a.category || 'विशेष',
       imageUrl: a.featuredImage || '',
       source: a.authorName || 'संपादकीय टीम',
@@ -835,14 +928,21 @@ export async function getRealtimeNewsForEpaper({
 
     // Apply multi-factor deduplication to ensure zero duplicate events across subtopics
     const dedupedAllocated = deduplicateNewsArticles(allocatedStories);
+    const sanitizedAllocated = dedupedAllocated.map(it => ({
+      ...it,
+      headline: stripAllMediaChannelNames(it.headline),
+      subHeadline: stripAllMediaChannelNames(it.subHeadline || ''),
+      snippet: stripAllMediaChannelNames(it.snippet || ''),
+      content: stripAllMediaChannelNames(it.content || '')
+    }));
 
-    dedupedAllocated.shortage = dedupedAllocated.length < limit;
-    dedupedAllocated.requestedCount = limit;
-    dedupedAllocated.availableCount = dedupedAllocated.length;
-    dedupedAllocated.subtopicRules = subtopicRules;
-    dedupedAllocated.subtopicStories = subtopicStories;
+    sanitizedAllocated.shortage = sanitizedAllocated.length < limit;
+    sanitizedAllocated.requestedCount = limit;
+    sanitizedAllocated.availableCount = sanitizedAllocated.length;
+    sanitizedAllocated.subtopicRules = subtopicRules;
+    sanitizedAllocated.subtopicStories = subtopicStories;
 
-    return dedupedAllocated;
+    return sanitizedAllocated;
   }
 
   // General / Single-topic fetch: Google RSS, GDELT (graceful secondary), and internal Database in parallel
@@ -862,13 +962,20 @@ export async function getRealtimeNewsForEpaper({
   // Apply multi-factor deduplication
   const combined = deduplicateNewsArticles(rawPool);
   const finalStories = combined.slice(0, limit);
+  const sanitizedFinal = finalStories.map(it => ({
+    ...it,
+    headline: stripAllMediaChannelNames(it.headline),
+    subHeadline: stripAllMediaChannelNames(it.subHeadline || ''),
+    snippet: stripAllMediaChannelNames(it.snippet || ''),
+    content: stripAllMediaChannelNames(it.content || '')
+  }));
 
   // Attach metadata properties while preserving full Array compatibility
-  finalStories.shortage = finalStories.length < limit;
-  finalStories.requestedCount = limit;
-  finalStories.availableCount = finalStories.length;
-  finalStories.subtopicRules = subtopicRules;
-  finalStories.subtopicStories = {};
+  sanitizedFinal.shortage = sanitizedFinal.length < limit;
+  sanitizedFinal.requestedCount = limit;
+  sanitizedFinal.availableCount = sanitizedFinal.length;
+  sanitizedFinal.subtopicRules = subtopicRules;
+  sanitizedFinal.subtopicStories = {};
 
-  return finalStories;
+  return sanitizedFinal;
 }
