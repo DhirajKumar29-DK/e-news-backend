@@ -106,7 +106,7 @@ export async function checkAndTriggerScheduledEpaperJobs() {
         continue;
       }
 
-      // Check if PaperIssue already exists in DB for this target date with pages
+      // Check if PaperIssue already exists in DB for this target date
       const existingIssue = await prisma.paperIssue.findFirst({
         where: {
           edition: { slug: editionSlug },
@@ -116,19 +116,38 @@ export async function checkAndTriggerScheduledEpaperJobs() {
         include: {
           pages: {
             where: { deletedAt: null },
-            select: { id: true }
+            include: {
+              slots: {
+                where: { deletedAt: null }
+              }
+            }
           }
         }
       });
 
-      if (existingIssue && existingIssue.pages && existingIssue.pages.length > 0) {
-        results.push({
-          editionSlug,
-          targetDate,
-          status: 'SKIPPED',
-          reason: `PaperIssue already exists with ${existingIssue.pages.length} pages`
-        });
-        continue;
+      if (existingIssue) {
+        if (existingIssue.status === 'PUBLISHED') {
+          results.push({
+            editionSlug,
+            targetDate,
+            status: 'SKIPPED',
+            reason: `PaperIssue is already PUBLISHED for ${targetDate}`
+          });
+          continue;
+        }
+
+        // Only skip if the issue already has full pages matching blueprint and populated slots
+        const totalSlotsCount = existingIssue.pages.reduce((acc, p) => acc + (p.slots?.length || 0), 0);
+        const blueprintCount = config.blueprints?.length || 8;
+        if (existingIssue.pages.length >= blueprintCount && totalSlotsCount >= blueprintCount * 2) {
+          results.push({
+            editionSlug,
+            targetDate,
+            status: 'SKIPPED',
+            reason: `PaperIssue already fully generated with ${existingIssue.pages.length} pages and ${totalSlotsCount} slots`
+          });
+          continue;
+        }
       }
 
       // 2. Trigger Evaluation:
