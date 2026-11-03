@@ -39,5 +39,7 @@ router.post('/admin/automation-config', epaperController.updateAutomationConfig)
 router.get('/admin/automation-history', epaperController.getAutomationJobHistory);
 router.delete('/admin/automation-history/:id', epaperController.deleteAutomationJobHistory);
 router.post('/admin/automation-trigger', epaperController.triggerManualAutomation);
+router.get('/admin/scheduler-tick', epaperController.triggerSchedulerTick);
+router.post('/admin/scheduler-tick', epaperController.triggerSchedulerTick);
 
 export default router;

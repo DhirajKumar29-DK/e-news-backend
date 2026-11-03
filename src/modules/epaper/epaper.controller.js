@@ -300,3 +300,21 @@ export const triggerManualAutomation = async (req, res, next) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const triggerSchedulerTick = async (req, res, next) => {
+  try {
+    const { checkAndTriggerScheduledEpaperJobs, getCurrentIndiaDateTime } = await import('./epaperScheduler.service.js');
+    const result = await checkAndTriggerScheduledEpaperJobs();
+    const { timeStr, dateStr } = getCurrentIndiaDateTime();
+    return res.status(200).json({
+      success: true,
+      message: 'Scheduler tick processed',
+      indiaTime: timeStr,
+      indiaDate: dateStr,
+      data: result
+    });
+  } catch (error) {
+    console.error('[triggerSchedulerTick] Error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
