@@ -129,3 +129,21 @@ export const uploadIdProof = multer({
   limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB max
   fileFilter: idProofFileFilter
 });
+
+// --- SELF-SERVE AD CREATIVE UPLOAD (IMAGE OR SHORT PROMO VIDEO) ---
+const adCreativeFilter = (req, file, cb) => {
+  const allowed = /jpeg|jpg|png|webp|gif|svg|mp4|webm|mov|mkv|m4v/;
+  const extname = allowed.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = file.mimetype.startsWith('video/') || file.mimetype.startsWith('image/') || allowed.test(file.mimetype);
+
+  if (extname && mimetype) {
+    return cb(null, true);
+  }
+  cb(new Error('Only image (JPG, PNG, WebP) or video files (MP4, WebM, MOV) are allowed for ad creative!'));
+};
+
+export const uploadAdCreative = multer({
+  storage: adStorage,
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB max
+  fileFilter: adCreativeFilter
+});

@@ -75,3 +75,43 @@ export const uploadIdProofDoc = async (req, res) => {
     return sendError(res, error.message || 'File upload failed', null, 500);
   }
 };
+
+export const sendReporterOtp = async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    const result = await authService.sendReporterOtp(phone);
+    return sendSuccess(res, 'OTP sent successfully to your mobile number.', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyReporterOtp = async (req, res, next) => {
+  try {
+    const { phone, otp } = req.body;
+    const result = await authService.verifyReporterOtp(phone, otp);
+    return sendSuccess(res, 'Mobile number verified successfully!', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const sendReporterEmailOtp = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    const result = await authService.sendReporterEmailOtp(email);
+    return sendSuccess(res, 'OTP sent successfully to your email address.', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyReporterEmailOtp = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+    const result = await authService.verifyReporterEmailOtp(email, otp);
+    return sendSuccess(res, 'Email address verified successfully!', result);
+  } catch (error) {
+    next(error);
+  }
+};

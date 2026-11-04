@@ -1,4 +1,20 @@
 import { prisma } from '../../config/db.js';
+import { broadcastPushNotification } from '../push/push.service.js';
+
+function triggerVideoPush(video) {
+  try {
+    broadcastPushNotification({
+      title: `📹 ${video.title}`,
+      body: video.description ? video.description.slice(0, 120) : 'नया वीडियो देखने के लिए क्लिक करें',
+      image: video.thumbnailUrl || null,
+      url: `/videos/${video.slug || video.id}`,
+      tag: `video-${video.id}`
+    }).catch(err => console.warn('[PushNotification] Video push broadcast error:', err.message));
+  } catch (err) {
+    console.warn('[PushNotification] triggerVideoPush error:', err.message);
+  }
+}
+
 
 export function extractYouTubeId(url) {
   if (!url || typeof url !== 'string') return null;
@@ -71,6 +87,12 @@ export const createVideo = async (data) => {
       publishedAt: data.publishedAt ? new Date(data.publishedAt) : new Date()
     }
   });
+
+  if (Boolean(data.sendNotification ?? data.sendPushNotification) && created.status === 'PUBLISHED') {
+    triggerVideoPush(created);
+  }
+
+  return created;
 };
 
 export const getVideos = async (query = {}) => {
@@ -182,10 +204,16 @@ export const updateVideo = async (id, data) => {
     updateData.thumbnailUrl = data.thumbnailUrl;
   }
 
-  return await prisma.video.update({
+  const updated = await prisma.video.update({
     where: { id },
     data: updateData
   });
+
+  if (Boolean(data.sendNotification ?? data.sendPushNotification) && updated.status === 'PUBLISHED') {
+    triggerVideoPush(updated);
+  }
+
+  return updated;
 };
 
 export const deleteVideo = async (id) => {

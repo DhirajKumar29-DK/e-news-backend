@@ -20,6 +20,19 @@ export const adController = {
   },
 
   /**
+   * Public: Check real-time slot availability for booking
+   */
+  async getSlotAvailability(req, res) {
+    try {
+      const data = await adService.getSlotAvailability();
+      return sendSuccess(res, 'Slot availability fetched successfully', data);
+    } catch (error) {
+      console.error('[AdController:getSlotAvailability]', error);
+      return sendError(res, 'Failed to fetch slot availability', error.message, 500);
+    }
+  },
+
+  /**
    * Public: Record ad click beacon
    */
   async recordClick(req, res) {
@@ -30,6 +43,83 @@ export const adController = {
     } catch (error) {
       console.error('[AdController:recordClick]', error);
       return sendError(res, 'Failed to record click', error.message, 500);
+    }
+  },
+
+  /**
+   * Public: Create Self-Serve Ad Order (from /advertise page)
+   */
+  async createSelfServeAd(req, res) {
+    try {
+      const data = { ...req.body };
+      if (req.file) {
+        data.imageUrl = `/uploads/ads/${req.file.filename}`;
+        const ext = req.file.filename.split('.').pop().toLowerCase();
+        if (['mp4', 'webm', 'mov'].includes(ext)) {
+          data.type = 'VIDEO';
+        } else {
+          data.type = 'IMAGE';
+        }
+      }
+
+      if (!data.title) {
+        return sendError(res, 'Ad title is required', null, 400);
+      }
+      if (!data.advertiserPhone) {
+        return sendError(res, 'Phone number is required', null, 400);
+      }
+      if (!data.slot) {
+        data.slot = 'HOMEPAGE_TOP';
+      }
+
+      const order = await adService.createSelfServeAd(data);
+      return sendSuccess(res, 'Ad submitted successfully for verification', order, 201);
+    } catch (error) {
+      console.error('[AdController:createSelfServeAd]', error);
+      return sendError(res, 'Failed to submit self-serve ad', error.message, 500);
+    }
+  },
+
+  /**
+   * Admin: List Self-Serve Ad Orders
+   */
+  async getSelfServeOrders(req, res) {
+    try {
+      const { page, limit, status, search } = req.query;
+      const result = await adService.getSelfServeOrders({ page, limit, status, search });
+      return sendSuccess(res, 'Self-serve orders fetched successfully', result);
+    } catch (error) {
+      console.error('[AdController:getSelfServeOrders]', error);
+      return sendError(res, 'Failed to fetch self-serve orders', error.message, 500);
+    }
+  },
+
+  /**
+   * Admin: Verify Payment & Publish Ad Live
+   */
+  async verifyAndPublishAd(req, res) {
+    try {
+      const { id } = req.params;
+      const updated = await adService.verifyAndPublishAd(id);
+      return sendSuccess(res, 'Payment verified and ad published live successfully', updated);
+    } catch (error) {
+      console.error('[AdController:verifyAndPublishAd]', error);
+      return sendError(res, 'Failed to verify and publish ad', error.message, 500);
+    }
+  },
+
+  /**
+   * Admin: Reject Ad
+   */
+  async rejectAd(req, res) {
+    try {
+      const { id } = req.params;
+      const { reason } = req.body;
+      const updated = await adService.rejectAd(id, reason);
+      return sendSuccess(res, 'Ad rejected and notice sent', updated);
+    } catch (error) {
+      console.error('[AdController:rejectAd]', error);
+      return sendError(res, 'Failed to reject ad', error.message, 500);
     }
   },
 
@@ -56,9 +146,8 @@ export const adController = {
   /**
    * Admin: Get single ad
    */
-  async getAdById(req, res) {
+  async getAdById(id) {
     try {
-      const { id } = req.params;
       const ad = await adService.getAdById(id);
       if (!ad) {
         return sendError(res, 'Advertisement not found', null, 404);

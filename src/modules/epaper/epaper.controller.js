@@ -105,7 +105,8 @@ export const savePagesBulk = async (req, res, next) => {
     const editionSlug = req.body.editionSlug || req.body.edition || 'patna-main';
     const publishDate = req.body.publishDate || req.body.date || new Date().toISOString().split('T')[0];
     const pages = req.body.pages || [];
-    const result = await epaperService.savePagesBulk(editionSlug, publishDate, pages);
+    const allowPagePruning = Boolean(req.body.allowPagePruning || req.body.clearExtraPages);
+    const result = await epaperService.savePagesBulk(editionSlug, publishDate, pages, { allowPagePruning });
     return sendSuccess(res, result.message, result);
   } catch (error) {
     next(error);

@@ -1,5 +1,22 @@
 import { prisma } from '../../config/db.js';
 import { AppError } from '../../utils/appError.js';
+import { broadcastPushNotification } from '../push/push.service.js';
+
+function triggerArticlePush(article) {
+  try {
+    const rawContent = article.content ? article.content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() : '';
+    const summary = article.subHeadline || rawContent.substring(0, 120) || 'ताज़ा खबर पढ़ने के लिए क्लिक करें';
+    broadcastPushNotification({
+      title: article.title,
+      body: summary,
+      image: article.featuredImage || null,
+      url: `/news/${article.slug}`,
+      tag: `article-${article.id}`
+    }).catch(err => console.warn('[PushNotification] Article push broadcast error:', err.message));
+  } catch (err) {
+    console.warn('[PushNotification] triggerArticlePush error:', err.message);
+  }
+}
 
 function slugify(text) {
   if (!text) return 'news-' + Date.now();
@@ -81,7 +98,7 @@ export const createArticle = async (data, user = null) => {
   };
 
   try {
-    return await prisma.article.create({
+    const created = await prisma.article.create({
       data: createPayload,
       include: {
         reporter: {
@@ -95,6 +112,10 @@ export const createArticle = async (data, user = null) => {
         }
       }
     });
+    if (Boolean(data.sendNotification ?? data.sendPushNotification) && created.status === 'PUBLISHED') {
+      triggerArticlePush(created);
+    }
+    return created;
   } catch (err) {
     if (err.message && (err.message.includes("isIndexed") || err.message.includes("metaTitle") || err.message.includes("Unknown argument") || err.message.includes("Unknown column"))) {
       delete createPayload.metaTitle;
@@ -102,9 +123,13 @@ export const createArticle = async (data, user = null) => {
       delete createPayload.metaKeywords;
       delete createPayload.canonicalUrl;
       delete createPayload.isIndexed;
-      return await prisma.article.create({
+      const created = await prisma.article.create({
         data: createPayload
       });
+      if (Boolean(data.sendNotification ?? data.sendPushNotification) && created.status === 'PUBLISHED') {
+        triggerArticlePush(created);
+      }
+      return created;
     }
     throw err;
   }
@@ -346,7 +371,7 @@ export const updateArticle = async (id, data, user = null) => {
   }
 
   try {
-    return await prisma.article.update({
+    const updated = await prisma.article.update({
       where: { id },
       data: sanitizedData,
       include: {
@@ -361,6 +386,10 @@ export const updateArticle = async (id, data, user = null) => {
         }
       }
     });
+    if (Boolean(data.sendNotification ?? data.sendPushNotification) && updated.status === 'PUBLISHED') {
+      triggerArticlePush(updated);
+    }
+    return updated;
   } catch (err) {
     if (err.message && (err.message.includes("isIndexed") || err.message.includes("metaTitle") || err.message.includes("Unknown argument") || err.message.includes("Unknown column"))) {
       const fallbackData = { ...sanitizedData };
@@ -369,10 +398,14 @@ export const updateArticle = async (id, data, user = null) => {
       delete fallbackData.metaKeywords;
       delete fallbackData.canonicalUrl;
       delete fallbackData.isIndexed;
-      return await prisma.article.update({
+      const updated = await prisma.article.update({
         where: { id },
         data: fallbackData
       });
+      if (Boolean(data.sendNotification ?? data.sendPushNotification) && updated.status === 'PUBLISHED') {
+        triggerArticlePush(updated);
+      }
+      return updated;
     }
     throw err;
   }
@@ -456,6 +489,10 @@ export const reviewArticle = async (id, reviewData, adminUser) => {
       }
     }
   });
+
+  if (Boolean(reviewData.sendNotification ?? reviewData.sendPushNotification) && updated.status === 'PUBLISHED') {
+    triggerArticlePush(updated);
+  }
 
   return updated;
 };

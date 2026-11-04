@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { prisma } from '../../config/db.js';
 import { env } from '../../config/env.js';
 import { AppError } from '../../utils/appError.js';
+import * as emailService from '../../services/email.service.js';
 
 /**
  * Universal Login Service (Admin & Reporter)
@@ -226,9 +227,16 @@ export const forgotPassword = async (email) => {
     }
   });
 
+  const resetUrl = `${env.FRONTEND_URL}/reporter/reset-password?token=${resetToken}`;
+  try {
+    await emailService.sendPasswordResetEmail(user, resetUrl);
+    console.log(`[PASSWORD RESET EMAIL SENT] To: ${user.email} | URL: ${resetUrl}`);
+  } catch (err) {
+    console.error('Failed to send password reset email:', err.message);
+  }
+
   return {
-    message: 'If an account exists with this email address, password reset instructions have been issued.',
-    resetToken: env.NODE_ENV === 'development' ? resetToken : undefined
+    message: 'If an account exists with this email address, password reset instructions have been issued.'
   };
 };
 
@@ -259,4 +267,146 @@ export const resetPassword = async (token, newPassword) => {
   });
 
   return { message: 'Password has been reset successfully. You can now log in with your new password.' };
+};
+
+
+/**
+ * Mobile OTP Verification Service for Reporter Registration
+ */
+const otpStore = new Map(); // phone -> { otp, expiresAt }
+const verifiedPhones = new Map(); // phone -> expiresAt
+
+export const sendReporterOtp = async (phone) => {
+  const cleanPhone = phone?.toString().trim().replace(/\D/g, '');
+  if (!cleanPhone || cleanPhone.length !== 10) {
+    throw new AppError('Please provide a valid 10-digit mobile number.', 400);
+  }
+
+  // Generate 6 digit numeric OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  otpStore.set(cleanPhone, { otp, expiresAt });
+  console.log(`\n======================================================`);
+  console.log(`📱 [REPORTER OTP] Phone: +91 ${cleanPhone} | OTP: ${otp}`);
+  console.log(`======================================================\n`);
+
+  return {
+    phone: cleanPhone,
+    otp, // Returned for instant local development and effortless testing
+    expiresInSeconds: 600
+  };
+};
+
+export const verifyReporterOtp = async (phone, otp) => {
+  const cleanPhone = phone?.toString().trim().replace(/\D/g, '');
+  const cleanOtp = otp?.toString().trim();
+
+  if (!cleanPhone || cleanPhone.length !== 10) {
+    throw new AppError('Please provide a valid 10-digit mobile number.', 400);
+  }
+  if (!cleanOtp || cleanOtp.length !== 6) {
+    throw new AppError('Please enter a valid 6-digit OTP.', 400);
+  }
+
+  const stored = otpStore.get(cleanPhone);
+  if (!stored) {
+    throw new AppError('OTP not found or has expired. Please click Resend OTP.', 400);
+  }
+
+  if (Date.now() > stored.expiresAt) {
+    otpStore.delete(cleanPhone);
+    throw new AppError('OTP has expired. Please click Resend OTP.', 400);
+  }
+
+  if (stored.otp !== cleanOtp) {
+    throw new AppError('Incorrect OTP entered. Please verify and try again.', 400);
+  }
+
+  // OTP verified successfully
+  otpStore.delete(cleanPhone);
+  verifiedPhones.set(cleanPhone, Date.now() + 30 * 60 * 1000);
+
+  return {
+    phone: cleanPhone,
+    verified: true
+  };
+};
+
+/**
+ * Email OTP Verification Service for Reporter Registration
+ */
+const emailOtpStore = new Map(); // email -> { otp, expiresAt }
+const verifiedEmails = new Map(); // email -> expiresAt
+
+export const sendReporterEmailOtp = async (email) => {
+  const cleanEmail = email?.toString().toLowerCase().trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!cleanEmail || !emailRegex.test(cleanEmail)) {
+    throw new AppError('Please provide a valid email address.', 400);
+  }
+
+  // Check if an existing account with this email exists
+  const existing = await prisma.user.findUnique({
+    where: { email: cleanEmail }
+  });
+  if (existing) {
+    throw new AppError('An account with this email address already exists. Please sign in.', 400);
+  }
+
+  // Generate 6 digit numeric OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+  emailOtpStore.set(cleanEmail, { otp, expiresAt });
+  console.log(`\n======================================================`);
+  console.log(`✉️ [REPORTER EMAIL OTP] Email: ${cleanEmail} | OTP: ${otp}`);
+  console.log(`======================================================\n`);
+
+  try {
+    await emailService.sendReporterOtpEmail(cleanEmail, otp);
+  } catch (err) {
+    console.error('Failed to dispatch reporter OTP email:', err.message);
+  }
+
+  // Notice: We DO NOT return otp in the response so it is NOT exposed on screen!
+  return {
+    email: cleanEmail,
+    expiresInSeconds: 600
+  };
+};
+
+export const verifyReporterEmailOtp = async (email, otp) => {
+  const cleanEmail = email?.toString().toLowerCase().trim();
+  const cleanOtp = otp?.toString().trim();
+
+  if (!cleanEmail) {
+    throw new AppError('Please provide a valid email address.', 400);
+  }
+  if (!cleanOtp || cleanOtp.length !== 6) {
+    throw new AppError('Please enter a valid 6-digit OTP.', 400);
+  }
+
+  const stored = emailOtpStore.get(cleanEmail);
+  if (!stored) {
+    throw new AppError('OTP not found or has expired. Please click Resend OTP.', 400);
+  }
+
+  if (Date.now() > stored.expiresAt) {
+    emailOtpStore.delete(cleanEmail);
+    throw new AppError('OTP has expired. Please click Resend OTP.', 400);
+  }
+
+  if (stored.otp !== cleanOtp) {
+    throw new AppError('Incorrect OTP entered. Please verify and try again.', 400);
+  }
+
+  // OTP verified successfully
+  emailOtpStore.delete(cleanEmail);
+  verifiedEmails.set(cleanEmail, Date.now() + 30 * 60 * 1000);
+
+  return {
+    email: cleanEmail,
+    verified: true
+  };
 };

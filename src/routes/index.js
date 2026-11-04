@@ -11,6 +11,7 @@ import categoryRoutes from '../modules/category/category.routes.js';
 import cricketRoutes from '../modules/cricket/cricket.routes.js';
 import adRoutes from '../modules/ad/ad.routes.js';
 import aiSettingsRoutes from '../modules/aiSettings/aiSettings.routes.js';
+import pushRoutes from '../modules/push/push.routes.js';
 
 const router = Router();
 
@@ -35,5 +36,6 @@ router.use('/categories', categoryRoutes);
 router.use('/cricket', cricketRoutes);
 router.use('/ads', adRoutes);
 router.use('/ai-settings', aiSettingsRoutes);
+router.use('/push', pushRoutes);
 
 export default router;

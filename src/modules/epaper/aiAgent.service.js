@@ -9,7 +9,7 @@ import {
   getSignificantTokens,
   stripAllMediaChannelNames
 } from './realtimeNews.service.js';
-import { getBroadsheetBlueprint } from './layoutEngine.js';
+import { getBroadsheetBlueprint, generateContentAwareLayout } from './layoutEngine.js';
 import { callUniversalAI } from '../aiSettings/universalAiGateway.js';
 import { getActiveAiCredentials } from '../aiSettings/aiSettings.service.js';
 
@@ -1039,7 +1039,36 @@ function synthesizeFallbackEditorialStory(item, slotBlueprint, index, topic, edi
     p4 = `क्षेत्रीय स्तर पर इस विषय पर लोगों और स्थानीय प्रतिनिधियों का भी ध्यान बना हुआ है। आगामी दिनों में इस संदर्भ में विस्तृत दिशा-निर्देश और नई प्रगति सामने आने की पूरी उम्मीद है।`;
   }
 
-  const content = stripAllMediaChannelNames(`${p1}\n\n${p2}\n\n${p3}\n\n${p4}`);
+  const targetW = slotBlueprint?.targetWordCount || 300;
+  const paragraphs = [p1, p2, p3, p4];
+
+  if (targetW >= 420) {
+    if (isEn) {
+      paragraphs.push(
+        `In-depth ground assessments indicate that both local stakeholders and civic groups have welcomed constructive engagement, emphasizing the necessity of sustained administrative follow-through.`,
+        `Senior analysts highlight that the subsequent 48 to 72 hours will be pivotal in establishing clear accountability, with formal department briefs expected shortly.`
+      );
+    } else {
+      paragraphs.push(
+        `ग्राउंड रिपोर्ट के अनुसार, स्थानीय नागरिकों और व्यावसायिक हलकों में भी इस विषय पर निरंतर चर्चाएं जारी हैं। विभिन्न सामाजिक समूहों ने प्रशासन से समयबद्ध और पारदर्शी समाधान की अपेक्षा व्यक्त की है।`,
+        `जानकारों का मानना है कि इस पूरे परिदृश्य में आने वाले 24 से 48 घंटे अत्यंत निर्णायक सिद्ध होंगे। उच्चाधिकारियों की आगामी समीक्षा बैठक के पश्चात विस्तृत दिशानिर्देश और आधिकारिक वक्तव्य जारी किए जाने के संकेत मिले हैं।`
+      );
+    }
+  }
+
+  if (targetW >= 550) {
+    if (isEn) {
+      paragraphs.push(
+        `Experts underline that addressing the fundamental systemic variables will ensure resilience across public services, setting an authoritative benchmark for future institutional protocols.`
+      );
+    } else {
+      paragraphs.push(
+        `विश्लेषकों का स्पष्ट मत है कि नीतिगत स्तर पर उठाए जाने वाले इन ठोस कदमों से न केवल वर्तमान चुनौतियों का समाधान निकलेगा, बल्कि भविष्य के लिए भी एक सुदृढ़ व्यवस्था स्थापित होगी।`
+      );
+    }
+  }
+
+  const content = stripAllMediaChannelNames(paragraphs.join('\n\n'));
 
   return {
     headline,
@@ -1054,6 +1083,82 @@ function synthesizeFallbackEditorialStory(item, slotBlueprint, index, topic, edi
  * Merge generated / synthesized stories into exact blueprint slot geometries
  * Guarantees zero duplicate events across slots and eliminates modulo recycling.
  */
+
+/**
+ * Guarantee distinct subheadline (never duplicate or echo headline)
+ */
+function ensureDistinctSubheadline(headline = '', subHeadline = '', isEn = false) {
+  const h = (headline || '').trim();
+  let s = (subHeadline || '').trim();
+
+  // If subheadline is empty, identical, or repeats 60%+ of the headline
+  const isDuplicate = !s ||
+    s.toLowerCase() === h.toLowerCase() ||
+    h.toLowerCase().includes(s.toLowerCase()) ||
+    s.toLowerCase().includes(h.toLowerCase().slice(0, 25)) ||
+    calculateStorySimilarity(h, s) > 0.5;
+
+  if (!isDuplicate) return s;
+
+  if (isEn) {
+    return `Key updates and official administrative assessment underway regarding recent ground developments.`;
+  }
+  return `मामले पर प्रशासनिक स्तर पर त्वरित संज्ञान, जमीनी स्तर पर स्थिति की समीक्षा जारी।`;
+}
+
+/**
+ * Editorial Content Density Engine:
+ * Guarantees that every broadsheet slot has sufficient word count to gracefully fill
+ * its physical height and newspaper columns without leaving 400px+ empty white voids!
+ */
+function ensureTargetContentDensity(text = '', headline = '', targetWords = 350, isEn = false) {
+  let clean = (text || '').trim();
+  const currentWords = clean.split(/\s+/).filter(Boolean).length;
+  const minRequired = Math.round(targetWords * 0.82);
+
+  if (currentWords >= minRequired) {
+    return clean;
+  }
+
+  const paragraphs = clean.split(/\n\n+/).filter(p => p.trim().length > 0);
+
+  if (isEn) {
+    if (paragraphs.length < 3) {
+      paragraphs.push(
+        `Senior administrative and departmental sources confirmed that active oversight is being maintained across all affected sectors. Initial internal evaluations emphasize the importance of systematic transparency, with prompt directives issued to maintain operational readiness.`
+      );
+    }
+    if (paragraphs.length < 4 || targetWords >= 400) {
+      paragraphs.push(
+        `Ground observers and community representatives have welcomed these initial measures, noting that sustained institutional attention will be critical to achieving long-term stability and addressing public concerns effectively.`
+      );
+    }
+    if (paragraphs.length < 5 || targetWords >= 500) {
+      paragraphs.push(
+        `The upcoming 24 to 48 hours are projected to be decisive as higher-level review panels convene to evaluate the broader implications and issue comprehensive guidelines for subsequent departmental actions.`
+      );
+    }
+  } else {
+    if (paragraphs.length < 3) {
+      paragraphs.push(
+        `मामले से जुड़े आधिकारिक सूत्रों ने पुष्टि की है कि संबंधित विभागों द्वारा पूरी स्थिति पर पैनी नज़र रखी जा रही है। प्रारंभिक आकलन के अनुसार, व्यवस्था को और अधिक पारदर्शी व सुदृढ़ बनाने के लिए आवश्यक कदम उठाए जा रहे हैं। वरिष्ठ अधिकारियों ने स्पष्ट किया है कि जमीनी हकीकत को ध्यान में रखते हुए दिशा-निर्देशों का कड़ाई से अनुपालन सुनिश्चित किया जाएगा।`
+      );
+    }
+    if (paragraphs.length < 4 || targetWords >= 400) {
+      paragraphs.push(
+        `स्थानीय नागरिकों और प्रबुद्ध वर्ग की ओर से भी इस पूरे घटनाक्रम पर सकारात्मक व सतर्क प्रतिक्रियाएं देखने को मिली हैं। विश्लेषकों का मानना है कि इस प्रकार के नीतिगत और संगठनात्मक प्रयासों का दीर्घकालिक प्रभाव देखने को मिलेगा, जिससे क्षेत्र में स्थिरता और विकास की गति को नया बल प्राप्त होगा।`
+      );
+    }
+    if (paragraphs.length < 5 || targetWords >= 500) {
+      paragraphs.push(
+        `आगामी 24 से 48 घंटे इस संदर्भ में अत्यंत महत्वपूर्ण माने जा रहे हैं, क्योंकि उच्चस्तरीय समीक्षा बैठक के उपरांत विस्तृत कार्ययोजना को अंतिम रूप दिया जाएगा। सभी संबंधित पक्षों को समयबद्ध तरीके से अपने दायित्वों का निर्वहन करने के निर्देश दिए गए हैं ताकि आमजन को किसी भी प्रकार की असुविधा न हो।`
+      );
+    }
+  }
+
+  return paragraphs.join('\n\n');
+}
+
 function assembleFinalSlots({
   blueprintSlots,
   stories,
@@ -1062,11 +1167,26 @@ function assembleFinalSlots({
   editionCity,
   formattedDateHindi,
   currentYear,
-  requestedLang = 'hi'
+  requestedLang = 'hi',
+  pageNumber = 1
 }) {
   const timestamp = Date.now();
 
-  const rawSlots = blueprintSlots.map((slotBlueprint, idx) => {
+  // Smart Content-Driven Geometry: Compute dynamic slot dimensions based on the generated stories!
+  let effectiveBlueprints = blueprintSlots;
+  if (Array.isArray(stories) && stories.length > 0) {
+    try {
+      effectiveBlueprints = generateContentAwareLayout({
+        stories,
+        pageNumber,
+        slotCount: blueprintSlots.length
+      });
+    } catch (e) {
+      console.warn('[Layout Engine] Dynamic content packer fallback to blueprint:', e.message);
+    }
+  }
+
+  const rawSlots = effectiveBlueprints.map((slotBlueprint, idx) => {
     const slotId = `ai-slot-${timestamp}-${idx + 1}`;
     const slotNumber = idx + 1;
     const realtimeItem = realtimeItems[idx] || realtimeItems[0];
@@ -1089,12 +1209,17 @@ function assembleFinalSlots({
       const isSubstantive = candHeadline.length >= 8 && candContent.length >= 35;
 
       if (sim >= 0.15 || contentHasWireTokens || (isCrossLingual && isSubstantive) || isSubstantive) {
+        const cleanH = stripAllMediaChannelNames(cleanDatelineBrackets(candHeadline));
+        const distinctSub = ensureDistinctSubheadline(cleanH, stories[idx].subHeadline, requestedLang === 'en');
+        const targetWords = slotBlueprint.targetWordCount || Math.max(220, Math.round((slotBlueprint.width * slotBlueprint.height) / 450));
+        const denseContent = ensureTargetContentDensity(candContent, cleanH, targetWords, requestedLang === 'en');
+
         storyData = {
-          headline: stripAllMediaChannelNames(cleanDatelineBrackets(candHeadline)),
-          subHeadline: stripAllMediaChannelNames(cleanDatelineBrackets(stories[idx].subHeadline || '')),
+          headline: cleanH,
+          subHeadline: distinctSub,
           categoryBadge: stories[idx].categoryBadge || realtimeItem?.subtopic || slotBlueprint.categoryBadge,
-          content: stripAllMediaChannelNames(cleanDatelineBrackets(candContent)),
-          photoPrompt: stories[idx].photoPrompt || `${realtimeItem?.headline || candHeadline} editorial press photography`
+          content: stripAllMediaChannelNames(cleanDatelineBrackets(denseContent)),
+          photoPrompt: stories[idx].photoPrompt || `${realtimeItem?.headline || cleanH} editorial press photography`
         };
       } else {
         // AI drifted into generic hallucination! Strictly reject it and use the real wire story!
@@ -1122,13 +1247,10 @@ function assembleFinalSlots({
     const cleanSubHeadline = stripAllMediaChannelNames(cleanDatelineBrackets(storyData.subHeadline));
     const cleanContent = stripAllMediaChannelNames(cleanDatelineBrackets(storyData.content));
 
-    const imageUrl = resolveEditorialStoryImage({
-      topic,
-      headline: cleanHeadline,
-      category: storyData.categoryBadge,
-      rawImageUrl: storyData.imageUrl || '',
-      slotIndex: idx
-    });
+    // Automated generation: No automatic stock images; admin manually uploads or adds images later!
+    const imageUrl = (storyData.imageUrl && storyData.imageUrl.trim() && !storyData.imageUrl.includes('pollinations.ai'))
+      ? storyData.imageUrl.trim()
+      : '';
 
     return {
       id: slotId,
@@ -1310,7 +1432,8 @@ export async function generateFullPageNewspaper({
     editionCity,
     formattedDateHindi,
     currentYear,
-    requestedLang
+    requestedLang,
+    pageNumber: Number(pageNumber) || 1
   });
 
   // Construct comprehensive slot-to-source verification report (Requirements 1, 2, 7 & 10)

@@ -1,6 +1,7 @@
 import { prisma } from '../../config/db.js';
 import { AppError } from '../../utils/appError.js';
 import { generateIssuePdf } from './puppeteer.service.js';
+import { broadcastPushNotification } from '../push/push.service.js';
 
 /**
  * Helper: Find or create PaperIssue for edition & date
@@ -332,6 +333,19 @@ export const publishIssue = async (editionSlug, dateString, status = 'PUBLISHED'
     }
   });
 
+  if ((status || 'PUBLISHED') === 'PUBLISHED') {
+    try {
+      broadcastPushNotification({
+        title: `📰 आज का ई-पेपर तैयार है! (${edition.name || 'ई-पेपर'})`,
+        body: `${dateString} का ताज़ा ई-पेपर संस्करण अब उपलब्ध है। अभी पूरा अख़बार डिजिटल पढ़ें।`,
+        url: `/epaper?edition=${edition.slug}&date=${dateString}`,
+        tag: `epaper-${edition.slug}-${dateString}`
+      }).catch(err => console.warn('[PushNotification] E-paper push error:', err.message));
+    } catch (e) {
+      console.warn('[PushNotification] E-paper notification error:', e.message);
+    }
+  }
+
   return {
     message: `Paper status updated to ${status}`,
     isAlreadyPublished: false,
@@ -459,7 +473,8 @@ export const generateIssuePdfService = async (params) => {
 /**
  * Admin API: Save All Pages & Slots in 1 Bulk Operation
  */
-export const savePagesBulk = async (editionSlug, dateString, pages) => {
+export const savePagesBulk = async (editionSlug, dateString, pages, options = {}) => {
+  const allowPagePruning = Boolean(options?.allowPagePruning || options?.clearExtraPages);
   const { issue } = await getOrCreatePaperIssue(editionSlug, dateString);
 
   if (!Array.isArray(pages)) {
@@ -559,15 +574,28 @@ export const savePagesBulk = async (editionSlug, dateString, pages) => {
     }
   }
 
-  // Soft-delete extra pages beyond pages.length if pages were removed
-  await prisma.paperPage.updateMany({
-    where: {
-      paperIssueId: issue.id,
-      pageNumber: { gt: pages.length },
-      deletedAt: null
-    },
-    data: { deletedAt: new Date() }
-  });
+  // Soft-delete extra pages beyond pages.length ONLY if explicitly requested (prevents accidental pruning from partial canvas saves)
+  if (allowPagePruning) {
+    const extraPages = await prisma.paperPage.findMany({
+      where: {
+        paperIssueId: issue.id,
+        pageNumber: { gt: pages.length },
+        deletedAt: null
+      },
+      select: { id: true }
+    });
+    if (extraPages.length > 0) {
+      const extraIds = extraPages.map(p => p.id);
+      await prisma.paperSlot.updateMany({
+        where: { pageId: { in: extraIds }, deletedAt: null },
+        data: { deletedAt: new Date() }
+      });
+      await prisma.paperPage.updateMany({
+        where: { id: { in: extraIds } },
+        data: { deletedAt: new Date() }
+      });
+    }
+  }
 
   await prisma.paperIssue.update({
     where: { id: issue.id },

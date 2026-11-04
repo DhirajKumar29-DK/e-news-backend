@@ -307,22 +307,41 @@ model Category {
 }
 
 model Advertisement {
-  id          String    @id @default(uuid())
-  title       String
-  slot        String    // HOMEPAGE_TOP, ARTICLE_INLINE, ARTICLE_SIDEBAR
-  type        String    @default("IMAGE") // IMAGE, SCRIPT
-  imageUrl    String?   @db.Text
-  targetUrl   String?   @db.Text
-  scriptCode  String?   @db.Text
-  startDate   DateTime?
-  endDate     DateTime?
-  isActive    Boolean   @default(true)
-  viewsCount  Int       @default(0)
-  clicksCount Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  title            String
+  slot             String    // HOMEPAGE_TOP, ARTICLE_INLINE, ARTICLE_SIDEBAR
+  type             String    @default("IMAGE") // IMAGE, SCRIPT, VIDEO
+  imageUrl         String?   @db.Text
+  targetUrl        String?   @db.Text
+  scriptCode       String?   @db.Text
+  startDate        DateTime?
+  endDate          DateTime?
+  isActive         Boolean   @default(true)
+  viewsCount       Int       @default(0)
+  clicksCount      Int       @default(0)
+
+  // Self-Serve Advertisements & Payment verification
+  description      String?   @db.Text
+  advertiserName   String?
+  advertiserPhone  String?
+  advertiserEmail  String?
+  targetDistrict   String?
+  actionType       String?   @default("WEBSITE") // WHATSAPP, WEBSITE, CALL, LOCATION, LEAD_FORM
+  allowCall        Boolean   @default(false)
+  amountPaid       Float?    @default(599)
+  paymentMethod    String?   @default("UPI") // UPI, BANK
+  paymentRefNumber String?   // UTR / Transaction ID
+  paymentProofUrl  String?   @db.Text
+  approvalStatus   String    @default("ACTIVE") // PENDING_VERIFICATION, APPROVED, REJECTED
+  rejectionReason  String?   @db.Text
+  leadFormConfig   String?   @db.Text // JSON configuration for custom lead forms
+  isSelfServe      Boolean   @default(false)
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([slot, isActive])
+  @@index([approvalStatus])
   @@map("advertisements")
 }
 
@@ -431,4 +450,22 @@ model EpaperScheduleJobLog {
 
   @@index([editionSlug, targetDate])
   @@map("epaper_schedule_job_logs")
+}
+
+// -------------------------------------------------------------
+// PUSH NOTIFICATION SUBSCRIPTION MODEL
+// -------------------------------------------------------------
+
+model PushSubscription {
+  id           String    @id @default(uuid())
+  endpoint     String    @db.Text
+  endpointHash String    @unique @db.VarChar(64)
+  p256dh       String    @db.Text
+  auth         String    @db.Text
+  userAgent    String?   @db.Text
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("push_subscriptions")
 }

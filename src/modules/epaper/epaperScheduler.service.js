@@ -151,33 +151,13 @@ export async function checkAndTriggerScheduledEpaperJobs() {
       }
 
       // 2. Trigger Evaluation:
-      // Condition A: Exact Time Match (e.g. 23:59 === 23:59 or 05:00 === 05:00)
+      // STRICT POLICY: ONLY trigger at the EXACT configured schedule time (e.g. 05:00 === 05:00).
+      // Never trigger automatic recovery on page refresh, run deletion, or arbitrary times of day.
+      // Any off-schedule generation must be triggered manually via the "Generate Edition" button.
       const isExactTime = timeStr === scheduleTime;
 
-      // Condition B: Missed Run Recovery
-      let isMissedRecovery = false;
-      let recoveryReason = '';
-
-      if (scheduleTime >= '18:00') {
-        // Night schedule (e.g. 23:59):
-        // If we are now in the morning/day of targetDate (timeStr < '18:00') and targetDate's issue is missing!
-        if (timeStr < '18:00') {
-          isMissedRecovery = true;
-          recoveryReason = `Missed night generation (${scheduleTime}) for today's paper (${targetDate})`;
-        }
-      } else {
-        // Morning/day schedule (e.g. 05:00):
-        // If current time is past scheduled time (e.g. 05:01+ or 07:30) and issue is missing
-        if (timeStr > scheduleTime) {
-          isMissedRecovery = true;
-          recoveryReason = `Missed morning generation (${scheduleTime}), current time is ${timeStr}`;
-        }
-      }
-
-      if (isExactTime || isMissedRecovery) {
-        const triggerReason = isExactTime
-          ? `Exact Time Match (${scheduleTime})`
-          : `Auto-Recovery: ${recoveryReason}`;
+      if (isExactTime) {
+        const triggerReason = `Exact Time Match (${scheduleTime})`;
 
         console.log(`[EpaperScheduler] 🚀 Triggering automated generation for "${editionSlug}" on ${targetDate} (${triggerReason}).`);
 

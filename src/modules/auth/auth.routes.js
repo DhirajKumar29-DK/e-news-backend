@@ -19,6 +19,12 @@ router.post('/login', validate(loginSchema), authController.login);
 // 2. Public Reporter Registration
 router.post('/register', validate(reporterRegisterSchema), authController.registerReporter);
 
+// Reporter OTP Endpoints
+router.post('/reporter/send-otp', authController.sendReporterOtp);
+router.post('/reporter/verify-otp', authController.verifyReporterOtp);
+router.post('/reporter/send-email-otp', authController.sendReporterEmailOtp);
+router.post('/reporter/verify-email-otp', authController.verifyReporterEmailOtp);
+
 // 3. Upload ID Proof / Press Card Document (Multipart)
 router.post('/upload-id-proof', uploadIdProof.single('idProof'), authController.uploadIdProofDoc);
 
