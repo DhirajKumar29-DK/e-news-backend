@@ -34,7 +34,11 @@ router.get('/public', adController.getPublicAd);
 // 7. Public: Record click beacon
 router.post('/:id/click', adController.recordClick);
 
-// 8. Admin: List all ads with filters
+// 8. Dynamic Pricing & UPI Management (Public GET / Admin PUT)
+router.get('/pricing-config', adController.getPricingConfig);
+router.put('/pricing-config', adController.updatePricingConfig);
+
+// 9. Admin: List all ads with filters
 router.get('/', adController.getAllAds);
 
 // 9. Admin: Single ad by ID

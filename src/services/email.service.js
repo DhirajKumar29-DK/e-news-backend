@@ -165,7 +165,7 @@ export const sendAdApprovalEmail = async (ad) => {
   const mailOptions = {
     from: env.SMTP_FROM || 'Vartiq Media <no-reply@vartiq.com>',
     to: ad.advertiserEmail,
-    subject: `🎉 बधाई हो! आपका विज्ञापन Live हो गया है - ${ad.title}`,
+    subject: `🎉 Congratulations! Your Advertisement is Live - ${ad.title}`,
     html: `
       <!DOCTYPE html>
       <html>
@@ -194,24 +194,23 @@ export const sendAdApprovalEmail = async (ad) => {
           </div>
           <div class="content">
             <span class="badge">✓ Payment Verified &amp; Published Live</span>
-            <h1>बधाई हो ${ad.advertiserName || 'प्रिय विज्ञापनदाता'}!</h1>
-            <p>आपकी पेमेंट (₹${ad.amountPaid || 599}) सफलतापूर्वक सत्यापित हो गई है और आपका विज्ञापन <strong>Live</strong> पब्लिश कर दिया गया है।</p>
+            <h1>Congratulations ${ad.advertiserName || 'Valued Advertiser'}!</h1>
+            <p>Your payment (₹${ad.amountPaid || 599}) has been successfully verified, and your advertisement is now <strong>Live</strong> on our portal.</p>
             
             <div class="info-box">
-              <strong>विज्ञापन विवरण:</strong><br>
-              &bull; <strong>शीर्षक:</strong> ${ad.title}<br>
-              &bull; <strong>स्थान / स्लॉट:</strong> ${ad.slot}<br>
-              &bull; <strong>लक्षित क्षेत्र:</strong> ${ad.targetDistrict || 'सभी पाठक'}<br>
-              &bull; <strong>पेमेंट संदर्भ (UTR):</strong> ${ad.paymentRefNumber || 'N/A'}<br>
-              &bull; <strong>वैधता:</strong> 30 दिन (पूर्ण माह प्रचार)
+              <strong>Campaign Details:</strong><br>
+              &bull; <strong>Title:</strong> ${ad.title}<br>
+              &bull; <strong>Slot Placement:</strong> ${ad.slot}<br>
+              &bull; <strong>Target District:</strong> ${ad.targetDistrict || 'All Readers'}<br>
+              &bull; <strong>Payment UTR:</strong> ${ad.paymentRefNumber || 'N/A'}
             </div>
 
             <div class="btn-container">
-              <a href="${siteUrl}" class="btn" target="_blank">वेबसाइट पर विज्ञापन देखें &rarr;</a>
+              <a href="${siteUrl}" class="btn" target="_blank">View Your Advertisement Live &rarr;</a>
             </div>
 
             <p style="font-size: 12px; color: #64748b;">
-              हमारे 50,000+ पाठक अब आपके विज्ञापन को देख रहे हैं। किसी भी सहायता के लिए हमारी सपोर्ट टीम से संपर्क करें।
+              Thousands of active daily readers are now discovering your business. If you need any assistance, feel free to contact our editorial support team.
             </p>
           </div>
           <div class="footer">
@@ -253,17 +252,17 @@ export const sendAdRejectionEmail = async (ad, reason) => {
   const mailOptions = {
     from: env.SMTP_FROM || 'Vartiq Media <no-reply@vartiq.com>',
     to: ad.advertiserEmail,
-    subject: `विज्ञापन स्थिति सूचना - ${ad.title}`,
+    subject: `Advertisement Review Notice - ${ad.title}`,
     html: `
       <!DOCTYPE html>
       <html>
       <body style="font-family: sans-serif; background: #f8fafc; padding: 20px; color: #1e293b;">
         <div style="max-width: 560px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0;">
-          <h2 style="color: #dc2626; margin-top: 0;">विज्ञापन अस्वीकृति सूचना</h2>
-          <p>प्रिय ${ad.advertiserName || 'विज्ञापनदाता'},</p>
-          <p>आपके द्वारा सबमिट किए गए विज्ञापन <strong>"${ad.title}"</strong> की समीक्षा के बाद उसे स्वीकार नहीं किया जा सका।</p>
-          ${reason ? `<div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px; margin: 16px 0; font-size: 13px;"><strong>कारण:</strong> ${reason}</div>` : ''}
-          <p style="font-size: 12px; color: #64748b;">यदि आपका कोई प्रश्न है अथवा पेमेंट रिफंड से संबंधित जानकारी चाहिए तो हमारी सहायता टीम से संपर्क करें।</p>
+          <h2 style="color: #dc2626; margin-top: 0;">Advertisement Review Notice</h2>
+          <p>Dear ${ad.advertiserName || 'Valued Advertiser'},</p>
+          <p>Thank you for submitting your advertisement <strong>"${ad.title}"</strong>. Following editorial verification, your ad could not be approved at this time.</p>
+          ${reason ? `<div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px; margin: 16px 0; font-size: 13px;"><strong>Reason:</strong> ${reason}</div>` : ''}
+          <p style="font-size: 12px; color: #64748b;">If you have any questions or require assistance regarding payment refund, please reach out to our support team.</p>
         </div>
       </body>
       </html>

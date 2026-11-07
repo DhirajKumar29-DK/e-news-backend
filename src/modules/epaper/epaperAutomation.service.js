@@ -257,8 +257,36 @@ export async function updateAutomationConfig(editionSlug = 'patna-main', updateD
 
 /**
  * Fetch Job Execution History for the Scheduler Dashboard
+ * Includes Auto-Watchdog: Detects and resolves stale jobs stuck in 'GENERATING' >15 mins
  */
 export async function getAutomationJobHistory(editionSlug = 'patna-main', limit = 20) {
+  // Auto-Watchdog: Auto-detect interrupted/zombie jobs older than 15 minutes
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+  try {
+    const staleJobs = await prisma.epaperScheduleJobLog.findMany({
+      where: {
+        editionSlug,
+        status: 'GENERATING',
+        startedAt: { lt: fifteenMinutesAgo }
+      }
+    });
+
+    for (const job of staleJobs) {
+      const updatedLog = (job.executionLog || '') + `\n[WATCHDOG] Execution was interrupted unexpectedly on Page ${job.pagesGenerated}/${job.totalPages} due to server process shutdown or restart. Status marked as INTERRUPTED.`;
+      await prisma.epaperScheduleJobLog.update({
+        where: { id: job.id },
+        data: {
+          status: 'INTERRUPTED',
+          completedAt: job.completedAt || new Date(),
+          errorMessage: `Execution interrupted unexpectedly on Page ${job.pagesGenerated}/${job.totalPages} (Server process stopped).`,
+          executionLog: updatedLog
+        }
+      });
+    }
+  } catch (watchdogErr) {
+    console.warn('[Auto-Watchdog Warning]:', watchdogErr.message);
+  }
+
   return prisma.epaperScheduleJobLog.findMany({
     where: { editionSlug },
     orderBy: { createdAt: 'desc' },

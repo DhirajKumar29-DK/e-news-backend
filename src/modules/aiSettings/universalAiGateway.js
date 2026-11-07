@@ -62,7 +62,7 @@ export async function callUniversalAI({
   temperature = 0.7,
   maxTokens = 4096,
   topP = 0.95,
-  timeoutMs = 15000
+  timeoutMs = 60000
 }) {
   const normProvider = (provider || 'gemini').toLowerCase().trim();
   const effectiveModel = model || (PROVIDER_MODELS[normProvider]?.[0]?.id) || 'gemini-2.5-flash';

@@ -227,10 +227,10 @@ export const adService = {
   },
 
   /**
-   * Admin: List all ads with optional filters
+   * Admin: List all direct admin ads with optional filters (excludes self-serve orders)
    */
   async getAllAds({ slot, isActive, page = 1, limit = 50 } = {}) {
-    const where = {};
+    const where = { isSelfServe: false };
     if (slot) where.slot = slot.toUpperCase();
     if (typeof isActive === 'boolean') where.isActive = isActive;
 
@@ -315,5 +315,124 @@ export const adService = {
     return prisma.advertisement.delete({
       where: { id }
     });
+  },
+
+  /**
+   * Get dynamic ad pricing & UPI configuration
+   */
+  async getPricingConfig() {
+    let config = await prisma.adPricingConfig.findFirst();
+
+    if (!config) {
+      const defaultPackages = [
+        {
+          id: 'pkg-1',
+          days: 1,
+          price: 99,
+          originalPrice: 199,
+          label: '1 Day (Flash Trial)',
+          discount: '50% off',
+          perDay: '₹99 / day',
+          badge: 'Trial',
+          popular: false
+        },
+        {
+          id: 'pkg-7',
+          days: 7,
+          price: 599,
+          originalPrice: 999,
+          label: '7 Days (Trial Pack)',
+          discount: '40% off',
+          perDay: '₹85 / day',
+          badge: 'Initial Plan',
+          popular: false
+        },
+        {
+          id: 'pkg-15',
+          days: 15,
+          price: 1199,
+          originalPrice: 2399,
+          label: '15 Days (Growth Pack)',
+          discount: '50% off',
+          perDay: '₹80 / day',
+          badge: 'Most Popular ⭐',
+          popular: true
+        },
+        {
+          id: 'pkg-30',
+          days: 30,
+          price: 1999,
+          originalPrice: 4999,
+          label: '30 Days (Super Saver)',
+          discount: '60% off',
+          perDay: '₹66 / day',
+          badge: 'Best Value 🔥',
+          popular: false
+        }
+      ];
+
+      const defaultSlotPricing = {
+        HOMEPAGE_TOP: { rateMultiplier: 1.5, customLabel: 'Homepage Top Leaderboard (Premium Slot)' },
+        ARTICLE_INLINE: { rateMultiplier: 1.2, customLabel: 'In-Article Native' },
+        ARTICLE_SIDEBAR: { rateMultiplier: 1.0, customLabel: 'Article Sidebar' },
+        HOMEPAGE_BOTTOM: { rateMultiplier: 0.9, customLabel: 'Homepage Bottom Banner' }
+      };
+
+      config = await prisma.adPricingConfig.create({
+        data: {
+          upiId: '9798223366@okbizaxis',
+          payeeName: 'Vartiq News',
+          pricingMode: 'GLOBAL',
+          packages: JSON.stringify(defaultPackages),
+          slotPricing: JSON.stringify(defaultSlotPricing)
+        }
+      });
+    }
+
+    return {
+      id: config.id,
+      upiId: config.upiId,
+      payeeName: config.payeeName,
+      pricingMode: config.pricingMode,
+      packages: typeof config.packages === 'string' ? JSON.parse(config.packages) : config.packages,
+      slotPricing: config.slotPricing ? (typeof config.slotPricing === 'string' ? JSON.parse(config.slotPricing) : config.slotPricing) : {},
+      updatedAt: config.updatedAt
+    };
+  },
+
+  /**
+   * Update ad pricing & UPI configuration
+   */
+  async updatePricingConfig(data) {
+    let existing = await prisma.adPricingConfig.findFirst();
+
+    const updatePayload = {
+      upiId: data.upiId || '9798223366@okbizaxis',
+      payeeName: data.payeeName || 'Vartiq News',
+      pricingMode: data.pricingMode || 'GLOBAL',
+      packages: typeof data.packages === 'string' ? data.packages : JSON.stringify(data.packages || []),
+      slotPricing: typeof data.slotPricing === 'string' ? data.slotPricing : JSON.stringify(data.slotPricing || {})
+    };
+
+    if (existing) {
+      const updated = await prisma.adPricingConfig.update({
+        where: { id: existing.id },
+        data: updatePayload
+      });
+      return {
+        ...updated,
+        packages: JSON.parse(updated.packages),
+        slotPricing: updated.slotPricing ? JSON.parse(updated.slotPricing) : {}
+      };
+    } else {
+      const created = await prisma.adPricingConfig.create({
+        data: updatePayload
+      });
+      return {
+        ...created,
+        packages: JSON.parse(created.packages),
+        slotPricing: created.slotPricing ? JSON.parse(created.slotPricing) : {}
+      };
+    }
   }
 };

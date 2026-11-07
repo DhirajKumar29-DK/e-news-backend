@@ -346,6 +346,19 @@ model Advertisement {
 }
 
 
+model AdPricingConfig {
+  id          String   @id @default(uuid())
+  upiId       String   @default("9798223366@okbizaxis")
+  payeeName   String   @default("Vartiq News")
+  pricingMode String   @default("GLOBAL")
+  packages    String   @db.LongText
+  slotPricing String?  @db.LongText
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("ad_pricing_configs")
+}
+
 model AiSystemSetting {
   id                    String   @id @default(uuid())
   activeProvider        String   @default("gemini")

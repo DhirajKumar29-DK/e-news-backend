@@ -62,7 +62,9 @@ export const createVideo = async (data) => {
     ? data.tags.join(', ')
     : (typeof data.tags === 'string' ? data.tags : null);
 
-  return await prisma.video.create({
+  const initialStatus = data.status || (data.reporterName && data.reporterName !== 'News Desk' ? 'PENDING_REVIEW' : 'PUBLISHED');
+
+  const created = await prisma.video.create({
     data: {
       title: data.title,
       slug: uniqueSlug,
@@ -83,8 +85,8 @@ export const createVideo = async (data) => {
       tags: tagsStr,
       isFeaturedHero: Boolean(data.isFeaturedHero),
       isTrending: Boolean(data.isTrending),
-      status: data.status || 'PUBLISHED',
-      publishedAt: data.publishedAt ? new Date(data.publishedAt) : new Date()
+      status: initialStatus,
+      publishedAt: initialStatus === 'PUBLISHED' ? (data.publishedAt ? new Date(data.publishedAt) : new Date()) : new Date()
     }
   });
 

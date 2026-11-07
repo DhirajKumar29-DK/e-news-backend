@@ -224,5 +224,31 @@ export const adController = {
       console.error('[AdController:deleteAd]', error);
       return sendError(res, 'Failed to delete advertisement', error.message, 500);
     }
+  },
+
+  /**
+   * Public / Admin: Get Pricing & UPI Configuration
+   */
+  async getPricingConfig(req, res) {
+    try {
+      const config = await adService.getPricingConfig();
+      return sendSuccess(res, 'Ad pricing configuration retrieved successfully', config);
+    } catch (error) {
+      console.error('[AdController:getPricingConfig]', error);
+      return sendError(res, 'Failed to fetch pricing configuration', error.message, 500);
+    }
+  },
+
+  /**
+   * Admin: Update Pricing & UPI Configuration
+   */
+  async updatePricingConfig(req, res) {
+    try {
+      const updated = await adService.updatePricingConfig(req.body);
+      return sendSuccess(res, 'Ad pricing configuration updated successfully', updated);
+    } catch (error) {
+      console.error('[AdController:updatePricingConfig]', error);
+      return sendError(res, 'Failed to update pricing configuration', error.message, 500);
+    }
   }
 };
