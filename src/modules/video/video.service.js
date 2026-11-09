@@ -233,14 +233,21 @@ export const incrementViews = async (id) => {
 };
 
 export const getFeaturedAndTrendingVideos = async () => {
-  // 1. Lead / Hero / Cover video is ALWAYS the latest published video
-  const latestHero = await prisma.video.findFirst({
-    where: { deletedAt: null, status: 'PUBLISHED' },
+  // 1. Lead / Hero / Cover video: Pick explicit admin hero (isFeaturedHero: true) first, fallback to latest published
+  let leadHero = await prisma.video.findFirst({
+    where: { deletedAt: null, status: 'PUBLISHED', isFeaturedHero: true },
     orderBy: { publishedAt: 'desc' }
   });
 
-  // 2. Playlist / Trending videos (latest published right after lead hero)
-  const heroId = latestHero ? latestHero.id : undefined;
+  if (!leadHero) {
+    leadHero = await prisma.video.findFirst({
+      where: { deletedAt: null, status: 'PUBLISHED' },
+      orderBy: { publishedAt: 'desc' }
+    });
+  }
+
+  // 2. Playlist / Trending videos (trending videos or latest published, excluding lead hero)
+  const heroId = leadHero ? leadHero.id : undefined;
   const trending = await prisma.video.findMany({
     where: {
       deletedAt: null,
@@ -248,7 +255,10 @@ export const getFeaturedAndTrendingVideos = async () => {
       ...(heroId ? { id: { not: heroId } } : {})
     },
     take: 5,
-    orderBy: { publishedAt: 'desc' }
+    orderBy: [
+      { isTrending: 'desc' },
+      { publishedAt: 'desc' }
+    ]
   });
 
   // 3. Recent 12 Videos
@@ -259,8 +269,8 @@ export const getFeaturedAndTrendingVideos = async () => {
   });
 
   return {
-    featuredHero: latestHero,
-    heroVideo: latestHero,
+    featuredHero: leadHero,
+    heroVideo: leadHero,
     trending,
     trendingVideos: trending,
     recent
