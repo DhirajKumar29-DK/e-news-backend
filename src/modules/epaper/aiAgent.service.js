@@ -1275,7 +1275,7 @@ function assembleFinalSlots({
       imageWrapMode: slotBlueprint.imageWrapMode || 'auto',
       columnsCount: slotBlueprint.columnsCount || 1,
       columnGap: slotBlueprint.columnGap || 14,
-      showColumnDivider: Boolean(slotBlueprint.showColumnDivider),
+      showColumnDivider: false, // Default to false: Admin will manually enable vertical line if needed
       headlineFontSize: slotBlueprint.headlineFontSize || 23,
       subHeadlineFontSize: slotBlueprint.subHeadlineFontSize || 19,
       summaryFontSize: slotBlueprint.summaryFontSize || 15,

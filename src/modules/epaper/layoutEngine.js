@@ -1527,7 +1527,7 @@ export function generateContentAwareLayout({ stories = [], pageNumber = 1, slotC
         height: rowH,
         columnsCount: colsCount,
         columnGap: 14,
-        showColumnDivider: colsCount > 1,
+        showColumnDivider: false,
         imageWrapMode: 'auto',
         imageAlignment: isLead ? 'Left' : (cIdx % 2 === 1 ? 'Right' : 'Left'),
         imageVertAlign: 'top',
