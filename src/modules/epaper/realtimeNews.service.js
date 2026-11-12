@@ -318,7 +318,18 @@ export const COMPETITOR_MEDIA_PATTERNS = [
   'Firstpost', 'Oneindia', 'One India', 'Moneycontrol', 'CNBC Awaaz', 'CNBC',
   'Punjab Kesari', 'पंजाब केसरी', 'Navodaya Times', 'नवोदय टाइम्स',
   'Rashtriya Sahara', 'राष्ट्रीय सहारा', 'Sahara Samay', 'सहारा समय',
-  'Jansatta', 'जनसत्ता', 'Navbharat Times', 'नवभारत टाइम्स', 'NBT',
+  'Jansatta', 'जनसत्ता',
+  'Navbharat Times', 'Navbharat Live', 'Navbharat News', 'Navbharat', 'नवभारत टाइम्स', 'नवभारत लाइव', 'नवभारत न्यूज़', 'नवभारत न्यूज', 'नवभारतलाइव', 'नवभारत', 'NBT Live', 'NBT',
+  'Patrika', 'Rajasthan Patrika', 'पत्रिका', 'राजस्थान पत्रिका', 'Patrika News',
+  'Dainik Navajyoti', 'Navajyoti', 'दैनिक नवज्योति', 'नवज्योति',
+  'Inext', 'आईनेक्स्ट', 'Jagran Inext',
+  'News State', 'न्यूज़ स्टेट', 'न्यूज स्टेट',
+  'Sadhna News', 'साधना न्यूज़', 'साधना न्यूज',
+  'APN News', 'एपीएन न्यूज़', 'एपीएन न्यूज',
+  'Bharat Express', 'भारत एक्सप्रेस',
+  'Jan TV', 'जन टीवी',
+  'Samachar Plus', 'समाचार प्लस',
+  'Khabar Fast', 'खबर फास्ट',
   'Hari Bhoomi', 'Haribhoomi', 'हरिभूमि', 'हरि भूमि', 'Pratahkal', 'प्रातःकाल',
   'Deshbandhu', 'देशबंधु', 'Sanmarg', 'सन्मार्ग',
   'Kashish News', 'कशिश न्यूज़', 'कशिश न्यूज',
@@ -344,7 +355,7 @@ const RE_HI_POSSESSIVE_ATTR = new RegExp('(?:' + SORTED_MEDIA_ESCAPED + ')\\s*(?
 const RE_EN_INLINE_ATTR = new RegExp('(?:according\\s*to|as\\s*reported\\s*by|reported\\s*by|speaking\\s*to)\\s*(?:' + SORTED_MEDIA_ESCAPED + ')', 'gi');
 const RE_PREFIX_MEDIA = new RegExp('^(?:(?:[\\-–—|/•·~]|(?:साभार|सौजन्य|स्रोत|courtesy|source|via)\\s*[:：\\-]?)\\s*)?(?:' + SORTED_MEDIA_ESCAPED + '|भास्कर अपडेट्स?|दैनिक भास्कर|अपडेट्स?|अपडेट\\s*::|ब्रेकिंग\\s*::|बड़ी ख़बर|बड़ी खबर|लाइव अपडेट्स?|Breaking News|Live Updates)\\s*[:：|–—-]+\\s*', 'gi');
 const RE_TRAILING_MEDIA = new RegExp('\\s*(?:[\\-–—|/•·~,]\\s*)?(?:' + SORTED_MEDIA_ESCAPED + ')\\s*[।|.\\-!?:;,)’"\'\\s]*$', 'i');
-const RE_STANDALONE_ANYWHERE = new RegExp('(?<=^|\\s)(?:' + SORTED_MEDIA_ESCAPED + ')(?=[\\s।|.\\-!?:;,]|$)', 'gi');
+const RE_STANDALONE_ANYWHERE = new RegExp('(?<=^|[\\s(‘"\'“])(?:' + SORTED_MEDIA_ESCAPED + ')(?:\\s*(?:Live|लाइव|Online|ऑनलाइन|Digital|डिजिटल|News|न्यूज़|न्यूज|Media|मीडिया|Network|नेटवर्क|Bureau|ब्यूरो|Desk|डेस्क|Hindi|हिंदी|Plus|प्लस|TV|टीवी|Times|टाइम्स))?[!?:;,-]*(?=[\\s।|.\\-!?:;,)\'"”’]|$)', 'gi');
 
 /**
  * Universal Journalism Sanitizer:
@@ -375,7 +386,9 @@ export function stripAllMediaChannelNames(text) {
   // 6. Remove any leftover standalone competitor mentions anywhere in text
   clean = clean.replace(RE_STANDALONE_ANYWHERE, '');
 
-  // 7. Clean dangling trailing punctuation at end
+  // 7. Clean dangling and orphaned punctuation
+  clean = clean.replace(/\s+[!?:;,\-]+\s+(?=[A-Z\u0900-\u097F])/g, ' ');
+  clean = clean.replace(/\s*[!?:;,\-]+\s*$/g, '');
   clean = clean.replace(/\s*[\-–—|:;,~]\s*$/, '').trim();
 
   // 8. Fix punctuation artifacts (e.g., '? ।' -> '?', '! ।' -> '!', multiple danda/dots)
